@@ -1,0 +1,22 @@
+{
+  "source": "bursakart.com.tr (BURULAŞ) — Otobüsüm Nerede ekranının kullandığı servis",
+  "collectedAt": "2026-10-07T14:29:59.671Z",
+  "lineCount": 409,
+  "stationCount": 7723,
+  "servedStationCount": 7549,
+  "directions": {
+    "G": "Gidiş",
+    "R": "Dönüş"
+  },
+  "collectionErrors": [
+    {
+      "step": "routecoordinate",
+      "line": "Hat Seçilmemiş",
+      "id": 65535,
+      "error": "Error: HTTP 400"
+    }
+  ],
+  "scheduleCollectedAt": "2026-10-07T14:35:15.663Z",
+  "departureCount": 127925,
+  "scheduleErrors": []
+}

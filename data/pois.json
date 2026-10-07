@@ -1,0 +1,86 @@
+{
+  "attribution": "© OpenStreetMap katkıda bulunanlar (ODbL)",
+  "generatedAt": "2026-10-07",
+  "pois": [
+    {
+      "id": "uludag-gorukle",
+      "osm": "way/343406413",
+      "name": "Bursa Uludağ Üniversitesi (Görükle Kampüsü)",
+      "layer": "campus",
+      "aliases": [
+        "BUÜ",
+        "Uludağ Üni"
+      ],
+      "position": [
+        40.238767,
+        28.868646
+      ]
+    },
+    {
+      "id": "btu-mimar-sinan",
+      "osm": "way/414842565",
+      "name": "Bursa Teknik Üniversitesi (Mimar Sinan Kampüsü)",
+      "layer": "campus",
+      "aliases": [
+        "BTÜ"
+      ],
+      "position": [
+        40.18849,
+        29.130055
+      ]
+    },
+    {
+      "id": "bursa-terminal",
+      "osm": "way/191171800",
+      "name": "Bursa Şehirlerarası Otobüs Terminali",
+      "layer": "terminal",
+      "aliases": [
+        "otogar"
+      ],
+      "position": [
+        40.26586,
+        29.053166
+      ]
+    },
+    {
+      "id": "kent-meydani",
+      "osm": "way/167270524",
+      "name": "Kent Meydanı AVM",
+      "layer": "mall",
+      "position": [
+        40.196555,
+        29.059742
+      ]
+    },
+    {
+      "id": "korupark",
+      "osm": "way/309768329",
+      "name": "Korupark AVM",
+      "layer": "mall",
+      "position": [
+        40.250766,
+        28.958916
+      ]
+    },
+    {
+      "id": "acemler-aktarma",
+      "osm": "way/1025242855",
+      "name": "Acemler Aktarma Merkezi",
+      "layer": "transfer",
+      "position": [
+        40.212291,
+        29.014518
+      ]
+    },
+    {
+      "id": "universite-aktarma",
+      "osm": "way/1355946848",
+      "name": "Üniversite Aktarma Merkezi",
+      "layer": "transfer",
+      "position": [
+        40.217679,
+        28.869842
+      ]
+    }
+  ]
+}

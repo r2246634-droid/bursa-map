@@ -1,0 +1,72 @@
+@import "tailwindcss";
+
+@layer base {
+  html,
+  body {
+    height: 100%;
+    overscroll-behavior: none; /* Mobilde "pull-to-refresh" haritayı bozmasın */
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    @apply bg-slate-100 text-slate-900 antialiased;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+}
+
+/* Haritanın üzerinde yüzen yarı saydam ("buzlu cam") yüzeyler */
+@utility glass {
+  @apply border border-white/60 bg-white/75 shadow-lg shadow-slate-900/10 backdrop-blur-md;
+}
+
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* ---- MapLibre özelleştirmeleri ---- */
+
+.maplibregl-map {
+  font-family: inherit;
+  background: #f1f5f9;
+}
+
+/* Alt köşedeki kontroller (zoom/pusula, konumum, atıf) sonuç kartlarının altında kalmasın */
+.maplibregl-ctrl-bottom-right,
+.maplibregl-ctrl-bottom-left {
+  bottom: 6.5rem;
+}
+
+/* Mobilde iki parmakla yakınlaştırma yeterli: zoom +/- butonlarını gizle, pusulayı bırak */
+@media (max-width: 767px) {
+  .maplibregl-ctrl-zoom-in,
+  .maplibregl-ctrl-zoom-out {
+    display: none !important;
+  }
+}
+
+/* ---- Yol tarifi uç noktaları (A / B) ---- */
+
+.route-endpoint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 9999px;
+  border: 3px solid #fff;
+  box-shadow: 0 2px 8px rgb(15 23 42 / 0.35);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.route-endpoint--from {
+  background: #059669; /* emerald-600: paneldeki A işaretiyle aynı */
+}
+
+.route-endpoint--to {
+  background: #e11d48; /* rose-600: paneldeki B işaretiyle aynı */
+}

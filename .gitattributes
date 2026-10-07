@@ -1,0 +1,9 @@
+# Satır sonları her işletim sisteminde LF olarak saklanır (Windows'taki CRLF gürültüsünü önler)
+* text=auto eol=lf
+
+# İkili dosyalar: satır sonu dönüşümü ve metin karşılaştırması yapılmaz
+*.png binary
+*.jpg binary
+*.ico binary
+*.xlsx binary
+*.pdf binary
