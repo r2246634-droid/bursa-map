@@ -41,10 +41,47 @@ type Label =
 export interface RouteQuery {
   from: RoutePoint;
   to: RoutePoint;
-  /** Gün: 1 = Pazartesi … 7 = Pazar */
+  /** Uygulanacak tarife günü: 1 = Pazartesi … 7 = Pazar (resmi tatilde 7, bkz. calendar.ts) */
   day: number;
   /** Çıkış saati (gece yarısından saniye) */
   time: number;
+  /** Önceki/sonraki takvim gününün tarifesi (verilmezse haftanın komşu günü varsayılır) */
+  previousDay?: number;
+  nextDay?: number;
+}
+
+const DAY = 86_400;
+/** Gece yarısından sonra bu saate kadar önceki günün hâlâ yolda olan seferleri de aranır */
+const AFTER_MIDNIGHT_WINDOW = 4 * 3600;
+/** Bu saatten sonraki aramalarda ertesi günün (sabah) seferleri de aranır */
+const EVENING_FROM = 18 * 3600;
+
+/**
+ * Bir desenin bu arama için kullanılabilir kalkışları (sıralı, saniye).
+ *  - Önceki gün: gece yarısını geçip hâlâ yolda olan seferler, −24 saat kaydırılmış (ör. 23:50 → −600)
+ *  - Bugün
+ *  - Ertesi gün: akşam aramasında sabah seferleri, +24 saat kaydırılmış (ör. 05:30 → 106200)
+ * Üç aralık örtüşmediği için birleşim zaten sıralıdır.
+ */
+function searchDepartures(net: Network, query: RouteQuery) {
+  const { day, time } = query;
+  const previousDay = query.previousDay ?? (day === 1 ? 7 : day - 1);
+  const nextDay = query.nextDay ?? (day === 7 ? 1 : day + 1);
+  const cache = new Map<number, number[]>();
+  return (patternIndex: number): number[] => {
+    let list = cache.get(patternIndex);
+    if (list) return list;
+    const pattern = net.patterns[patternIndex];
+    const duration = pattern.offsets.at(-1) ?? 0;
+    const previous =
+      time < AFTER_MIDNIGHT_WINDOW
+        ? (pattern.departures[previousDay] ?? []).filter((d) => d + duration > DAY).map((d) => d - DAY)
+        : [];
+    const next = time >= EVENING_FROM ? (pattern.departures[nextDay] ?? []).map((d) => d + DAY) : [];
+    list = [...previous, ...(pattern.departures[day] ?? []), ...next];
+    cache.set(patternIndex, list);
+    return list;
+  };
 }
 
 /** sorted[i] >= value olan en küçük i (yoksa length) */
@@ -66,10 +103,10 @@ function accessStops(net: Network, p: RoutePoint) {
   return list.filter(({ stop }) => net.stopPatterns[stop].length > 0);
 }
 
-export function planJourneys(query: RouteQuery): Journey[] {
-  const net = getNetwork();
+export function planJourneys(query: RouteQuery, net: Network = getNetwork()): Journey[] {
+  const departuresOf = searchDepartures(net, query);
   const S = net.stops.length;
-  const { from, to, day, time } = query;
+  const { from, to, time } = query;
 
   const access = accessStops(net, from);
   const egress = new Map(accessStops(net, to).map((e) => [e.stop, e.meters]));
@@ -109,7 +146,7 @@ export function planJourneys(query: RouteQuery): Journey[] {
     // 2) Desenleri tara
     for (const [p, startPosition] of queue) {
       const pattern = net.patterns[p];
-      const departures = pattern.departures[day];
+      const departures = departuresOf(p);
       if (!departures?.length) continue;
 
       let trip = -1;
@@ -166,7 +203,7 @@ export function planJourneys(query: RouteQuery): Journey[] {
 
   const journeys: Journey[] = [];
   roundTarget.forEach((target, k) => {
-    if (target) journeys.push(buildJourney(net, labels, k, target.stop, egress.get(target.stop)!, query));
+    if (target) journeys.push(buildJourney(net, labels, k, target.stop, egress.get(target.stop)!, query, departuresOf));
   });
 
   const directMeters = haversineMeters(from, to);
@@ -194,7 +231,8 @@ function buildJourney(
   rounds: number,
   lastStop: number,
   egressMeters: number,
-  { from, to, day }: RouteQuery,
+  { from, to }: RouteQuery,
+  departuresOf: (pattern: number) => number[],
 ): Journey {
   const point = (stop: number): RoutePoint => {
     const s = net.stops[stop];
@@ -229,7 +267,7 @@ function buildJourney(
       continue;
     }
     const pattern = net.patterns[label.pattern];
-    const tripStart = pattern.departures[day][label.trip];
+    const tripStart = departuresOf(label.pattern)[label.trip];
     const stopsOnRide = pattern.stops.slice(label.board, label.alight + 1);
     reversed.push({
       type: "ride",

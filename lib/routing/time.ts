@@ -72,24 +72,3 @@ export function estimateStopOffsets(stops: LatLon[], { speedKmh, roadFactor = 1 
 export function interpolateStopTimes(departure: number, offsets: number[]): number[] {
   return offsets.map((offset) => departure + offset);
 }
-
-/**
- * Verilen anın Türkiye saatine göre haftanın günü (1 = Pazartesi … 7 = Pazar) ve
- * gece yarısından itibaren saniyesi. Sunucunun saat dilimi ne olursa olsun doğru sonuç verir.
- */
-export function istanbulClock(date: Date): { day: number; seconds: number } {
-  const parts = Object.fromEntries(
-    new Intl.DateTimeFormat("en-GB", {
-      timeZone: "Europe/Istanbul",
-      weekday: "short",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      hourCycle: "h23",
-    })
-      .formatToParts(date)
-      .map((p) => [p.type, p.value]),
-  );
-  const day = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].indexOf(parts.weekday) + 1;
-  return { day, seconds: Number(parts.hour) * 3600 + Number(parts.minute) * 60 + Number(parts.second) };
-}

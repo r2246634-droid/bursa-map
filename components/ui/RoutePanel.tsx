@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowUpDown, X } from "lucide-react";
+import { ArrowUpDown, Clock, X } from "lucide-react";
 
 import type { RouteEndpoints } from "@/components/map/RouteOverlay";
 import type { Place } from "@/data/types";
@@ -22,6 +22,9 @@ interface RoutePanelProps extends RouteEndpoints {
   onHeightChange: (height: number) => void;
   /** Sunucudan (RAPTOR) gelen yol tarifi seçenekleri */
   journeys: JourneysState;
+  /** Kalkış saati (datetime-local değeri); null = şimdi */
+  departAt: string | null;
+  onDepartAtChange: (value: string | null) => void;
   selectedJourney: number;
   onSelectJourney: (index: number) => void;
 }
@@ -38,6 +41,8 @@ export default function RoutePanel({
   onClose,
   onHeightChange,
   journeys,
+  departAt,
+  onDepartAtChange,
   selectedJourney,
   onSelectJourney,
 }: RoutePanelProps) {
@@ -160,6 +165,29 @@ export default function RoutePanel({
         >
           <ArrowUpDown className="h-5 w-5" />
         </button>
+      </div>
+
+      <div className="mt-3 flex items-center gap-2 text-sm">
+        <Clock className="h-4 w-4 shrink-0 text-slate-500" aria-hidden />
+        <button
+          type="button"
+          onClick={() => onDepartAtChange(null)}
+          aria-pressed={departAt === null}
+          className={`rounded-full px-3 py-1 font-medium ${
+            departAt === null ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-700"
+          }`}
+        >
+          Şimdi
+        </button>
+        <input
+          type="datetime-local"
+          value={departAt ?? ""}
+          onChange={(e) => onDepartAtChange(e.target.value || null)}
+          aria-label="Kalkış tarihi ve saati"
+          className={`min-w-0 flex-1 rounded-full px-3 py-1 text-base outline-none ${
+            departAt ? "bg-blue-50 text-blue-800 ring-1 ring-blue-500" : "bg-slate-100 text-slate-700"
+          }`}
+        />
       </div>
 
       <div className="mt-4">

@@ -1,10 +1,31 @@
 /**
- * Koordinattan adres (Nominatim reverse geocoding).
+ * Koordinattan adres (Nominatim uyumlu reverse geocoding).
  *
- * Nominatim kullanım politikası: saniyede en fazla 1 istek, toplu/otomatik sorgu yok.
- * Burada sadece kullanıcı bir yeri seçtiğinde tek istek atılıyor ve sonuçlar önbellekte tutuluyor.
- * Trafik büyüdüğünde kendi Nominatim sunucusu veya ücretli bir sağlayıcı gerekecek.
+ * Sağlayıcı NEXT_PUBLIC_REVERSE_GEOCODE_URL ile değiştirilebilir (bkz. .env.example):
+ *   - varsayılan: OSM'nin ücretsiz Nominatim sunucusu — kullanım politikası saniyede en fazla
+ *     1 istek ve toplu kullanım yasağı; yayındaki bir uygulama için uygun değil,
+ *   - kendi Nominatim sunucunuz veya Nominatim uyumlu ücretli bir servis (aynı /reverse arayüzü).
+ * Uç nokta sorgu parametresi içerebilir (ör. ?key=…); lat/lon/format parametreleri üstüne eklenir.
+ *
+ * Kullanıcı bir yer seçtiğinde tek istek atılır, sonuçlar önbellekte tutulur ve istekler
+ * arasında en az MIN_INTERVAL_MS beklenir (hızlı art arda dokunuşlarda politika ihlali olmasın).
  */
+
+const ENDPOINT = process.env.NEXT_PUBLIC_REVERSE_GEOCODE_URL || "https://nominatim.openstreetmap.org/reverse";
+const MIN_INTERVAL_MS = 1100;
+
+/** İstekleri sıraya koyup aralarına en az MIN_INTERVAL_MS bırakır */
+let queue: Promise<void> = Promise.resolve();
+let lastRequestAt = 0;
+function throttled<T>(task: () => Promise<T>): Promise<T> {
+  const run = queue.then(async () => {
+    const wait = lastRequestAt + MIN_INTERVAL_MS - Date.now();
+    if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+    lastRequestAt = Date.now();
+  });
+  queue = run.catch(() => undefined);
+  return run.then(task);
+}
 
 export interface ReverseGeocodeResult {
   /** Nominatim'in bulduğu yerin adı (varsa), ör. "Bursa Teknik Üniversitesi" */
@@ -44,17 +65,25 @@ export async function reverseGeocode(
   const key = `${lat.toFixed(5)},${lng.toFixed(5)}`;
   if (cache.has(key)) return cache.get(key)!;
 
-  const url = new URL("https://nominatim.openstreetmap.org/reverse");
-  url.search = new URLSearchParams({
+  const url = new URL(ENDPOINT);
+  const query = new URLSearchParams(url.search);
+  for (const [param, value] of Object.entries({
     lat: String(lat),
     lon: String(lng),
     format: "jsonv2",
     zoom: "18",
     addressdetails: "1",
     "accept-language": "tr",
-  }).toString();
+  })) {
+    query.set(param, value);
+  }
+  url.search = query.toString();
 
-  const res = await fetch(url, { signal });
+  const res = await throttled(() => {
+    // Kullanıcı sırada beklerken başka yer seçtiyse istek hiç atılmasın
+    if (signal?.aborted) throw new DOMException("İptal edildi", "AbortError");
+    return fetch(url, { signal });
+  });
   if (!res.ok) throw new Error(`Nominatim ${res.status}`);
   const data = (await res.json()) as { name?: string; address?: NominatimAddress; error?: string };
 

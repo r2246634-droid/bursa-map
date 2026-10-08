@@ -34,10 +34,12 @@ export default function MapShell() {
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
   const [route, setRoute] = useState<RouteEndpoints>(EMPTY_ROUTE);
   const [routePanelHeight, setRoutePanelHeight] = useState(0);
-  const journeys = useJourneys(route.from, route.to);
+  /** Yol tarifi kalkış saati (datetime-local değeri); null = şimdi */
+  const [departAt, setDepartAt] = useState<string | null>(null);
+  const journeys = useJourneys(route.from, route.to, departAt);
   // Seçili seçenek, hangi aramaya ait olduğuyla saklanır: uç noktalar değişince ilk seçeneğe döner
   const [journeyChoice, setJourneyChoice] = useState<{ url: string | null; index: number }>({ url: null, index: 0 });
-  const currentUrl = journeysUrl(route.from, route.to);
+  const currentUrl = journeysUrl(route.from, route.to, departAt);
   const selectedJourneyIndex = journeyChoice.url === currentUrl ? journeyChoice.index : 0;
   const selectedJourney =
     journeys.status === "done" ? (journeys.data.journeys[selectedJourneyIndex] ?? null) : null;
@@ -214,6 +216,8 @@ export default function MapShell() {
           onClose={closePanel}
           onHeightChange={setRoutePanelHeight}
           journeys={journeys}
+          departAt={departAt}
+          onDepartAtChange={setDepartAt}
           selectedJourney={selectedJourneyIndex}
           onSelectJourney={(index) => setJourneyChoice({ url: currentUrl, index })}
         />

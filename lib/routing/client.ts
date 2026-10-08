@@ -17,8 +17,12 @@ export type JourneysState =
 const IDLE: JourneysState = { status: "idle" };
 const LOADING: JourneysState = { status: "loading" };
 
-/** İstek adresi aynı zamanda sonucun anahtarı: uç noktalar değişince eski sonuç gösterilmez */
-export function journeysUrl(from: Place | null, to: Place | null): string | null {
+/**
+ * İstek adresi aynı zamanda sonucun anahtarı: uç noktalar veya kalkış saati değişince eski sonuç
+ * gösterilmez. departAt: <input type="datetime-local"> değeri ("2026-10-08T08:30"), null = şimdi.
+ * Türkiye'de yaz saati uygulaması olmadığından saat dilimi sabit +03:00'tır.
+ */
+export function journeysUrl(from: Place | null, to: Place | null, departAt: string | null = null): string | null {
   if (!from || !to) return null;
   const params = new URLSearchParams({
     from: from.position.join(","),
@@ -26,12 +30,13 @@ export function journeysUrl(from: Place | null, to: Place | null): string | null
     fromName: from.name,
     toName: to.name,
   });
+  if (departAt) params.set("at", `${departAt}:00+03:00`);
   return `/api/route?${params}`;
 }
 
 /** Nereden/Nereye seçilince yol tarifini sunucudan (RAPTOR) ister */
-export function useJourneys(from: Place | null, to: Place | null): JourneysState {
-  const url = journeysUrl(from, to);
+export function useJourneys(from: Place | null, to: Place | null, departAt: string | null = null): JourneysState {
+  const url = journeysUrl(from, to, departAt);
   const [entry, setEntry] = useState<{ url: string; state: JourneysState } | null>(null);
 
   useEffect(() => {

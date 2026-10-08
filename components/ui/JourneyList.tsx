@@ -49,10 +49,12 @@ export default function JourneyList({ state, selectedIndex, onSelect }: JourneyL
         ))}
       </ol>
 
-      <p className="flex items-start gap-1.5 px-1 text-xs text-slate-500">
-        <Info className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden />
-        {notes[0]}
-      </p>
+      {notes.map((note) => (
+        <p key={note} className="flex items-start gap-1.5 px-1 text-xs text-slate-500">
+          <Info className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden />
+          {note}
+        </p>
+      ))}
     </div>
   );
 }

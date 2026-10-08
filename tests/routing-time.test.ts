@@ -5,7 +5,6 @@ import {
   formatClock,
   haversineMeters,
   interpolateStopTimes,
-  istanbulClock,
   parseClock,
 } from "@/lib/routing/time";
 
@@ -75,19 +74,5 @@ describe("ara durak varış tahmini (estimateStopOffsets / interpolateStopTimes)
 
   it("tek duraklı desende sadece kalkış saati döner", () => {
     expect(estimateStopOffsets([{ lat: 40, lon: 29 }], { speedKmh: 20 })).toEqual([0]);
-  });
-});
-
-describe("istanbulClock — sunucu saat diliminden bağımsız Türkiye saati", () => {
-  it("UTC 05:30 Perşembe → İstanbul 08:30, gün 4", () => {
-    expect(istanbulClock(new Date("2026-10-08T05:30:00Z"))).toEqual({ day: 4, seconds: 30600 });
-  });
-
-  it("UTC gece yarısından önce, İstanbul'da ertesi gün olabilir (Pazar 22:30 UTC → Pazartesi 01:30)", () => {
-    expect(istanbulClock(new Date("2026-10-11T22:30:00Z"))).toEqual({ day: 1, seconds: 5400 });
-  });
-
-  it("Pazar = 7", () => {
-    expect(istanbulClock(new Date("2026-10-11T09:00:00Z")).day).toBe(7);
   });
 });

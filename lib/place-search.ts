@@ -16,17 +16,24 @@ import { createSearchIndex, type SearchIndex } from "./search";
  */
 
 /**
- * Sıralamada eşit puanlı sonuçlardan önce gelecekler (düşük = önce):
- * öne çıkan noktalar ve raylı istasyonlar binlerce otobüs durağının arasında kaybolmasın.
+ * Sıralama önceliği (puana eklenir, düşük = önce). Puanlar: 0 tam eşleşme, 1 baştan eşleşme,
+ * 2 kelime başı eşleşme (lib/search.ts).
+ *
+ * Öne çıkan noktalar ve raylı istasyonlar binlerce otobüs durağının arasında kaybolmasın diye
+ * -1,1: böylece ör. "acemler" aramasında kelime başı eşleşen metro istasyonu "Bursaspor/Acemler"
+ * (2 − 1,1 = 0,9), baştan eşleşen otobüs durağı "Acemler 1"in (1) önüne geçer.
+ * Bilinçli sonuç: baştan eşleşen bir aktarma merkezi/istasyon (1 − 1,1 = −0,1), adı aramayla
+ * birebir aynı olan bir otobüs durağının (0) da önüne geçer — bu ikisi toplamsal öncelikle
+ * aynı anda sağlanamaz; önemli yeri öne almak tercih edildi.
  */
-function boostOf(place: Place): number {
-  if (place.kind === "poi") return -0.3;
-  if (place.kind === "station" && place.mode !== "bus") return -0.3;
+export function placeBoost(place: Place): number {
+  if (place.kind === "poi") return -1.1;
+  if (place.kind === "station" && place.mode !== "bus") return -1.1;
   if (place.kind === "line") return -0.1;
   return 0;
 }
 
-let index: SearchIndex<Place> = createSearchIndex(PLACES, boostOf);
+let index: SearchIndex<Place> = createSearchIndex(PLACES, placeBoost);
 const placeById = new Map(PLACE_BY_ID);
 const listeners = new Set<() => void>();
 let loading: Promise<void> | null = null;
@@ -36,7 +43,7 @@ export function ensureBusPlacesLoaded(): Promise<void> {
   loading ??= loadBusData()
     .then(({ linePlaces, stopPlaces }) => {
       for (const p of [...linePlaces, ...stopPlaces]) placeById.set(p.id, p);
-      index = createSearchIndex([...PLACES, ...linePlaces, ...stopPlaces], boostOf);
+      index = createSearchIndex([...PLACES, ...linePlaces, ...stopPlaces], placeBoost);
       for (const listener of listeners) listener();
     })
     .catch((error) => {
