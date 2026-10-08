@@ -1,22 +1,28 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import BursaMap from "@/components/map/Map";
 import type { RouteEndpoints } from "@/components/map/RouteOverlay";
 import BottomNav, { type TabId } from "@/components/ui/BottomNav";
 import LayerControl, { LayerToggleButton } from "@/components/ui/LayerControl";
+import LinesPanel from "@/components/ui/LinesPanel";
 import ResultCards from "@/components/ui/ResultCards";
 import RoutePanel from "@/components/ui/RoutePanel";
+import SavedPanel from "@/components/ui/SavedPanel";
 import SearchBar from "@/components/ui/SearchBar";
 import { DEFAULT_VISIBLE_LAYERS } from "@/data/layers";
 import { PLACES } from "@/data/places";
 import { POIS } from "@/data/pois";
 import type { LayerId, Place } from "@/data/types";
+import { busLinePlaceId } from "@/lib/burulas";
+import { useHydrateFavorites } from "@/lib/favorites";
+import { journeysUrl, useJourneys } from "@/lib/routing/client";
 import { droppedPin } from "@/lib/map-features";
-import { searchByName } from "@/lib/search";
+import { ensureBusPlacesLoaded, findPlaceById, usePlaceIndex } from "@/lib/place-search";
 
 const CARD_LIMIT = 20;
+const NOTICE_MS = 4000;
 const EMPTY_ROUTE: RouteEndpoints = { from: null, to: null };
 
 /** Uygulama durumunu (sekme, katmanlar, arama, seçim, rota) tutan ve UI parçalarını birleştiren kabuk. */
@@ -28,8 +34,39 @@ export default function MapShell() {
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
   const [route, setRoute] = useState<RouteEndpoints>(EMPTY_ROUTE);
   const [routePanelHeight, setRoutePanelHeight] = useState(0);
+  const journeys = useJourneys(route.from, route.to);
+  // Seçili seçenek, hangi aramaya ait olduğuyla saklanır: uç noktalar değişince ilk seçeneğe döner
+  const [journeyChoice, setJourneyChoice] = useState<{ url: string | null; index: number }>({ url: null, index: 0 });
+  const currentUrl = journeysUrl(route.from, route.to);
+  const selectedJourneyIndex = journeyChoice.url === currentUrl ? journeyChoice.index : 0;
+  const selectedJourney =
+    journeys.status === "done" ? (journeys.data.journeys[selectedJourneyIndex] ?? null) : null;
+  const [notice, setNotice] = useState<string | null>(null);
+  const noticeTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const placeIndex = usePlaceIndex();
+  useHydrateFavorites();
+
+  // BURULAŞ hat ve durakları (~1 MB) ilk ekran çizildikten sonra, tarayıcı boşta kalınca yüklensin:
+  // haritada durağa dokunma ve arama için hazır olur, açılış hızını etkilemez
+  useEffect(() => {
+    const load = () => void ensureBusPlacesLoaded();
+    if ("requestIdleCallback" in window) {
+      const id = window.requestIdleCallback(load, { timeout: 3000 });
+      return () => window.cancelIdleCallback(id);
+    }
+    const id = setTimeout(load, 1500);
+    return () => clearTimeout(id);
+  }, []);
+
+  const showNotice = useCallback((message: string) => {
+    setNotice(message);
+    clearTimeout(noticeTimer.current);
+    noticeTimer.current = setTimeout(() => setNotice(null), NOTICE_MS);
+  }, []);
 
   const routeMode = activeTab === "route";
+  /** Haritanın üstünü kaplayan bir panel açık mı (Rota, Hatlar, Kayıtlı): üst arama ve kartlar gizlenir */
+  const panelOpen = activeTab !== "map";
 
   /** Seçilen yer gizli bir katmandaysa (ör. otobüs kapalıyken bir durak), katmanı aç */
   const revealLayerOf = (place: Place) => {
@@ -53,9 +90,9 @@ export default function MapShell() {
   const cardPlaces = useMemo(
     () =>
       query.trim()
-        ? searchByName(PLACES, query, CARD_LIMIT)
+        ? placeIndex.search(query, CARD_LIMIT)
         : PLACES.filter((p) => p.kind === "poi" && visibleLayers.has(p.layer)),
-    [query, visibleLayers],
+    [query, visibleLayers, placeIndex],
   );
 
   const handleQueryChange = (value: string) => {
@@ -67,6 +104,13 @@ export default function MapShell() {
     setSelectedPlace(place);
     setQuery(place.name);
     revealLayerOf(place);
+  };
+
+  /** Durak kartındaki hat rozetine dokunuldu: hattı seç (güzergâhı indirilip haritada çizilir) */
+  const handleSelectLine = (code: string) => {
+    const place = findPlaceById(busLinePlaceId(code));
+    if (place) handleSelect(place);
+    else showNotice(`${code} hattının güzergâhı bulunamadı`);
   };
 
   /** Haritada bir yere dokunuldu: rota modunda boş uca yazılır, değilse bilgi kartı açılır */
@@ -93,10 +137,16 @@ export default function MapShell() {
   };
 
   const handleTabChange = (tab: TabId) => {
-    // Rota sekmesine tekrar basmak paneli kapatır
-    setActiveTab((current) => (current === tab && tab === "route" ? "map" : tab));
+    // Açık panelin sekmesine tekrar basmak paneli kapatır
+    setActiveTab((current) => (current === tab ? "map" : tab));
     setLayerPanelOpen(false);
     if (tab === "route") setSelectedPlace(null); // seçili yerin bilgi kartı panelin arkasında kalmasın
+  };
+
+  /** Hatlar/Kayıtlı panelinden bir öğe seçildi: paneli kapat, haritada göster */
+  const handlePanelSelect = (place: Place) => {
+    setActiveTab("map");
+    handleSelect(place);
   };
 
   const handleRouteChange = (next: RouteEndpoints) => {
@@ -105,8 +155,8 @@ export default function MapShell() {
     if (next.to) revealLayerOf(next.to);
   };
 
-  // RoutePanel'in ResizeObserver efektine bağımlılık olarak gidiyor; kimliği sabit kalmalı
-  const closeRoutePanel = useCallback(() => setActiveTab("map"), []);
+  // Panellerin Escape/ResizeObserver efektlerine bağımlılık olarak gidiyor; kimliği sabit kalmalı
+  const closePanel = useCallback(() => setActiveTab("map"), []);
 
   return (
     <div className="flex h-dvh flex-col">
@@ -117,17 +167,19 @@ export default function MapShell() {
             visibleLayers={visibleLayers}
             selectedPlace={selectedPlace}
             route={routeMode ? route : null}
+            journey={routeMode ? selectedJourney : null}
             bottomInset={routeMode ? routePanelHeight : 0}
             onPlaceClick={handleMapPlaceClick}
             onEmptyClick={handleEmptyMapClick}
+            onNotice={showNotice}
           />
         </div>
 
         {/* Üst overlay: arama + katman butonu. Dış kapsayıcı tıklamaları haritaya geçirir.
-            Rota modunda arama Nereden/Nereye kutularına devredildiği için gizlenir. */}
+            Bir panel açıkken arama gizlenir (Rota'da Nereden/Nereye, Hatlar'da kendi filtresi var). */}
         <div className="pointer-events-none absolute inset-x-0 top-0 z-[1001] pt-[env(safe-area-inset-top)]">
           <div className="mx-auto flex max-w-2xl justify-end gap-2 p-4">
-            {!routeMode && (
+            {!panelOpen && (
               <div className="pointer-events-auto flex-1">
                 <SearchBar value={query} onChange={handleQueryChange} onSelect={handleSelect} />
               </div>
@@ -139,7 +191,7 @@ export default function MapShell() {
         </div>
 
         {/* Alt overlay: sonuç kartları veya seçilen yerin bilgi kartı */}
-        {!routeMode && (
+        {!panelOpen && (
           <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[1000]">
             <div className="pointer-events-auto mx-auto max-w-5xl">
               <ResultCards
@@ -148,6 +200,7 @@ export default function MapShell() {
                 onSelect={handleSelect}
                 onClearSelection={() => setSelectedPlace(null)}
                 onDirections={handleDirections}
+                onSelectLine={handleSelectLine}
               />
             </div>
           </div>
@@ -158,9 +211,24 @@ export default function MapShell() {
           from={route.from}
           to={route.to}
           onChange={handleRouteChange}
-          onClose={closeRoutePanel}
+          onClose={closePanel}
           onHeightChange={setRoutePanelHeight}
+          journeys={journeys}
+          selectedJourney={selectedJourneyIndex}
+          onSelectJourney={(index) => setJourneyChoice({ url: currentUrl, index })}
         />
+
+        <LinesPanel open={activeTab === "lines"} onClose={closePanel} onSelectLine={handlePanelSelect} />
+        <SavedPanel open={activeTab === "saved"} onClose={closePanel} onSelect={handlePanelSelect} />
+
+        {notice && (
+          <div
+            role="status"
+            className="pointer-events-none absolute inset-x-0 top-20 z-[1200] mt-[env(safe-area-inset-top)] flex justify-center px-4"
+          >
+            <p className="rounded-full bg-slate-900/85 px-4 py-2 text-sm text-white shadow-lg">{notice}</p>
+          </div>
+        )}
 
         <LayerControl
           open={layerPanelOpen}

@@ -41,3 +41,16 @@ export const MAPLIBRE_WORKER_URL = "/vendor/maplibre-gl-worker.mjs";
 
 /** Uygulama içi [enlem, boylam] → MapLibre [boylam, enlem] */
 export const toLngLat = ([lat, lng]: [number, number]): [number, number] => [lng, lat];
+
+/**
+ * Kamera animasyon süresi. Sayfa arka plandaysa (requestAnimationFrame durur, animasyon yarıda
+ * asılı kalır) veya kullanıcı işletim sisteminde "hareketi azalt" seçtiyse kamera animasyonsuz
+ * doğrudan hedefe geçer.
+ */
+export function cameraDuration(ms: number): number {
+  if (typeof document !== "undefined" && document.hidden) return 0;
+  if (typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+    return 0;
+  }
+  return ms;
+}

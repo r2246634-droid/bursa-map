@@ -14,12 +14,13 @@ import MapGL, {
 import { setWorkerUrl, type Map as MaplibreMap } from "maplibre-gl";
 import { MapPin } from "lucide-react";
 
-import { PLACE_BY_ID } from "@/data/places";
-import type { LayerId, Place, PointOfInterest, TransitMode } from "@/data/types";
+import type { LayerId, Place, PointOfInterest, RailMode } from "@/data/types";
+import type { Journey } from "@/lib/routing/types";
 import {
   BASEMAP_POI_LAYERS,
   BURSA_BOUNDS,
   BURSA_CENTER,
+  cameraDuration,
   MAP_STYLE_URL,
   MAP_ZOOM,
   MAPLIBRE_WORKER_URL,
@@ -28,6 +29,10 @@ import {
   toLngLat,
 } from "@/lib/map-config";
 import { placeFromBasemapPoi } from "@/lib/map-features";
+import { findPlaceById } from "@/lib/place-search";
+
+import BusLineLayer, { BUS_LINE_STOPS_LAYER_ID } from "./BusLineLayer";
+import BusStopsLayer, { BUS_STOPS_LAYER_ID } from "./BusStopsLayer";
 
 import PoiLayer, { POI_LAYER_ID } from "./PoiLayer";
 import RouteOverlay, { type RouteEndpoints } from "./RouteOverlay";
@@ -37,8 +42,11 @@ import TransitLayer, { stationLayerId } from "./TransitLayer";
 // Bu modül sadece tarayıcıda yüklenir (Map.tsx → next/dynamic, ssr: false).
 setWorkerUrl(MAPLIBRE_WORKER_URL);
 
-/** Çizim sırası: önce eklenen altta kalır → otobüs < tramvay < metro */
-const TRANSIT_MODES: TransitMode[] = ["bus", "tram", "metro"];
+/** Çizim sırası: önce eklenen altta kalır → (otobüs durakları <) tramvay < metro */
+const RAIL_MODES: RailMode[] = ["tram", "metro"];
+
+/** Seçili yer/hat bilgi kartının haritayı kapattığı yaklaşık yükseklik (px) */
+const CARD_INSET = 260;
 
 export interface MapViewProps {
   pois: PointOfInterest[];
@@ -46,12 +54,16 @@ export interface MapViewProps {
   selectedPlace: Place | null;
   /** Rota modu açıkken uç noktalar; kapalıyken null */
   route: RouteEndpoints | null;
+  /** Seçili yol tarifi seçeneği (rota modunda) */
+  journey: Journey | null;
   /** Haritanın altını kaplayan panelin yüksekliği (px) */
   bottomInset: number;
   /** Haritada bir istasyona, noktaya veya altlıktaki bir yere dokunuldu */
   onPlaceClick: (place: Place) => void;
   /** Haritada boş bir yere dokunuldu ([enlem, boylam]) */
   onEmptyClick: (position: [number, number]) => void;
+  /** Kullanıcıya kısa bilgi/hata mesajı göstermek için (ör. güzergâh indirilemedi) */
+  onNotice?: (message: string) => void;
 }
 
 /**
@@ -72,12 +84,13 @@ function localizeLabels(map: MaplibreMap) {
 function FlyToSelected({ place }: { place: Place | null }) {
   const { current: map } = useMap();
   useEffect(() => {
-    if (!map || !place) return;
+    // Hat seçiminde kamerayı BusLineLayer güzergâh inince fitBounds ile ayarlar
+    if (!map || !place || place.kind === "line") return;
     map.flyTo({
       center: toLngLat(place.position),
       zoom: Math.max(map.getZoom(), MAP_ZOOM.focus),
       padding: { top: 80, bottom: 220, left: 0, right: 0 },
-      duration: 800,
+      duration: cameraDuration(800),
     });
   }, [map, place]);
   return null;
@@ -88,9 +101,11 @@ export default function MapView({
   visibleLayers,
   selectedPlace,
   route,
+  journey,
   bottomInset,
   onPlaceClick,
   onEmptyClick,
+  onNotice,
 }: MapViewProps) {
   const [map, setMap] = useState<MapRef | null>(null);
   const [labelLayerId, setLabelLayerId] = useState<string>();
@@ -103,13 +118,23 @@ export default function MapView({
    * çizilmesini (ve karoları) bekler; arka plandaki sekmede çizim durduğu için gecikebiliyor.
    */
   const handleStyleReady = useCallback((m: MaplibreMap) => {
+    // Geliştirme sırasında konsoldan/test betiklerinden kamera durumunu okuyabilmek için
+    if (process.env.NODE_ENV === "development") {
+      (window as unknown as { __bursaMap?: MaplibreMap }).__bursaMap = m;
+    }
     localizeLabels(m);
     const layers = m.getStyle().layers;
     // Hat çizgileri ilk etiket katmanının altına girsin: sokak/mahalle adları hattın üstünde okunur
     setLabelLayerId(layers.find((l) => l.type === "symbol")?.id);
     // Stil değişirse olmayan katmanı sorgulamamak için altlık POI katmanlarını stilde doğrula
     const basemapPois = BASEMAP_POI_LAYERS.filter((id) => layers.some((l) => l.id === id));
-    setInteractiveLayerIds([POI_LAYER_ID, ...TRANSIT_MODES.map(stationLayerId), ...basemapPois]);
+    setInteractiveLayerIds([
+      POI_LAYER_ID,
+      ...RAIL_MODES.map(stationLayerId),
+      BUS_STOPS_LAYER_ID,
+      BUS_LINE_STOPS_LAYER_ID,
+      ...basemapPois,
+    ]);
   }, []);
 
   useEffect(() => {
@@ -131,9 +156,9 @@ export default function MapView({
       return;
     }
     const props = (feature.properties ?? {}) as Record<string, unknown>;
-    // Kendi katmanlarımız (istasyon, öne çıkan nokta): kimlikten uygulamadaki yeri bul
+    // Kendi katmanlarımız (istasyon, durak, öne çıkan nokta): kimlikten uygulamadaki yeri bul
     if (!BASEMAP_POI_LAYERS.includes(feature.layer.id) && typeof props.id === "string") {
-      const appPlace = PLACE_BY_ID.get(props.id);
+      const appPlace = findPlaceById(props.id);
       if (appPlace) {
         onPlaceClick(appPlace);
         return;
@@ -149,7 +174,7 @@ export default function MapView({
   };
 
   const toggle3d = () => {
-    map?.easeTo({ pitch: pitched ? 0 : PITCH_3D, bearing: pitched ? 0 : -17, duration: 800 });
+    map?.easeTo({ pitch: pitched ? 0 : PITCH_3D, bearing: pitched ? 0 : -17, duration: cameraDuration(800) });
   };
 
   return (
@@ -175,8 +200,9 @@ export default function MapView({
         <GeolocateControl position="bottom-right" />
 
         {/* Stil yüklenmeden (labelLayerId bilinmeden) kendi katmanlarımızı eklemiyoruz */}
+        {labelLayerId && <BusStopsLayer visible={visibleLayers.has("bus")} />}
         {labelLayerId &&
-          TRANSIT_MODES.map((mode) => (
+          RAIL_MODES.map((mode) => (
             <TransitLayer
               key={mode}
               mode={mode}
@@ -186,9 +212,12 @@ export default function MapView({
           ))}
         {labelLayerId && <PoiLayer pois={pois} visibleLayers={visibleLayers} />}
 
-        {selectedPlace && <SelectedMarker place={selectedPlace} />}
+        {labelLayerId && selectedPlace?.kind === "line" && (
+          <BusLineLayer line={selectedPlace.line} bottomInset={CARD_INSET} onError={onNotice} />
+        )}
+        {selectedPlace && selectedPlace.kind !== "line" && <SelectedMarker place={selectedPlace} />}
         <FlyToSelected place={selectedPlace} />
-        {route && <RouteOverlay from={route.from} to={route.to} bottomInset={bottomInset} />}
+        {route && <RouteOverlay from={route.from} to={route.to} journey={journey} bottomInset={bottomInset} />}
       </MapGL>
 
       <button

@@ -7,9 +7,21 @@ const withPWA = withPWAInit({
   cacheOnFrontEndNav: true,
   aggressiveFrontEndNavCaching: true,
   reloadOnOnline: true,
+  // public/data altındaki hat güzergâhları (~400 dosya, ~7 MB) kurulumda önceden indirilmesin;
+  // sadece kullanıcının açtığı hatlar aşağıdaki runtime önbelleğine girer
+  publicExcludes: ["!noprecache/**/*", "!data/**/*"],
   workboxOptions: {
     disableDevLogs: true,
     runtimeCaching: [
+      {
+        // Hat güzergâhları (scripts/split-shapes.mjs): önbellekten hemen göster, arkada tazele
+        urlPattern: /\/data\/burulas\/shapes\/.+\.json$/i,
+        handler: "StaleWhileRevalidate",
+        options: {
+          cacheName: "bus-shapes",
+          expiration: { maxEntries: 450, maxAgeSeconds: 60 * 60 * 24 * 30 },
+        },
+      },
       {
         // Vektör harita karoları, yazı tipleri ve ikonlar (OpenFreeMap): daha önce gezilen
         // bölgeler çevrimdışı da görünür. Stil dosyası ayrı: güncellemeleri kaçırmamak için ağ öncelikli.

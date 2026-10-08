@@ -101,4 +101,46 @@ export type Place =
       transfer: boolean;
     })
   /** Altlık haritadan dokunularak seçilen yer (dükkân, okul…) veya boş bir noktaya bırakılan iğne */
-  | (PlaceBase & { kind: "feature"; category: string });
+  | (PlaceBase & { kind: "feature"; category: string })
+  /**
+   * BURULAŞ otobüs hattı. position: güzergâhın sınır kutusunun ortası (seçilince kamera
+   * fitBounds ile tüm hattı kapsar, bu nokta sadece yedek).
+   */
+  | (PlaceBase & { kind: "line"; layer: LayerId; line: BusLine });
+
+/* ---- BURULAŞ otobüs veri seti (data/burulas, scripts/build-bus-dataset.mjs) ---- */
+
+/** G = gidiş, D = dönüş, R = ring (tek yönlü dairesel hat) */
+export type BusDirection = "G" | "D" | "R";
+
+export interface BusLine {
+  /** Servisteki hat numarası */
+  id: number;
+  /** Hat kodu, ör. "22C" — BURULAŞ'ta "B1"/"B2" otobüs hattıdır, metro değil */
+  code: string;
+  name: string;
+  stopCount: Partial<Record<BusDirection, number>>;
+  /** Her yönün [ilk durak, son durak] adı (ham, büyük harf) */
+  termini: Partial<Record<BusDirection, [string, string]>>;
+  hasShape: boolean;
+}
+
+export interface BusStation {
+  id: number;
+  /** Ham ad, ör. "VAKIFKÖY MERKEZ 1 (D2993)" */
+  name: string;
+  lat: number;
+  lon: number;
+  /** Duraktan geçen hat kodları */
+  lines: string[];
+}
+
+/** public/data/burulas/shapes/index.json girdisi (scripts/split-shapes.mjs) */
+export interface BusShapeIndexEntry {
+  file: string;
+  directions: BusDirection[];
+  points: number;
+  stops: number;
+  /** [batı, güney, doğu, kuzey] */
+  bbox: [number, number, number, number];
+}

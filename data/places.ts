@@ -2,7 +2,10 @@ import { POIS } from "./pois";
 import { TRANSIT_STATIONS } from "./transit-network";
 import type { Place } from "./types";
 
-/** Aranabilir tüm yerler: ilgi noktaları + metro/tramvay istasyonları + otobüs durakları */
+/**
+ * Her zaman hazır (paketle gelen) yerler: öne çıkan noktalar + metro/tramvay istasyonları.
+ * BURULAŞ otobüs hat ve durakları ayrıca, tembel yüklenir (lib/burulas.ts, lib/place-search.ts).
+ */
 export const PLACES: Place[] = [
   ...POIS.map((poi): Place => ({
     kind: "poi",

@@ -12,7 +12,8 @@
  *   schedules.json    — (verildiyse) her hattın yön başı kalkış saatleri, gün gün (1=Pzt … 7=Paz)
  *   bursa-otobus-veriseti.xlsx — Hatlar / Duraklar / Hat-Durak Sırası / Sefer Saatleri sayfaları
  *
- * Yön kodları: servis "G" (gidiş) ve "R" (dönüş) kullanıyor.
+ * Yön kodları: G = gidiş, D = dönüş (iki yönlü hatlar), R = ring (tek yönlü dairesel hat).
+ * 238 hat G+D, 167 hat yalnızca R kullanıyor (ör. T1, 22C).
  */
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
@@ -35,19 +36,52 @@ raw.lines = raw.lines.filter((l) => l.id < SYSTEM_LINE_MIN_ID);
 const outDir = new URL("../data/burulas/", import.meta.url);
 await mkdir(outDir, { recursive: true });
 
-const DIRECTION_TR = { G: "Gidiş", R: "Dönüş" };
+const DIRECTION_TR = { G: "Gidiş", D: "Dönüş", R: "Ring" };
+const DIRECTION_ORDER = ["G", "D", "R"];
+const byDirection = (a, b) => DIRECTION_ORDER.indexOf(a.direction) - DIRECTION_ORDER.indexOf(b.direction);
+
+// ---- Koordinat onarımı ----
+// Arama servisi (routeandstation) bazı duraklarda boylam yerine enlemi tekrar yazıyor
+// (ör. 40.24526, 40.24526). Hat durak listesi (routestat) aynı durak için doğru koordinatı
+// verdiğinden önce oradan onarıyoruz; onarılamayanlar veri setinden çıkarılıyor.
+const inProvince = ({ lat, lon }) => lat >= 39.5 && lat <= 40.8 && lon >= 28 && lon <= 30;
+const routestatCoord = new Map();
+for (const stops of Object.values(raw.lineStops)) {
+  for (const s of stops) if (inProvince(s)) routestatCoord.set(s.stopId, { lat: s.lat, lon: s.lon });
+}
+const repairedStations = [];
+const droppedStations = [];
+raw.stations = raw.stations.flatMap((s) => {
+  if (inProvince(s)) return [s];
+  const fix = routestatCoord.get(s.id);
+  if (fix) {
+    repairedStations.push(s.id);
+    return [{ ...s, ...fix }];
+  }
+  droppedStations.push({ id: s.id, name: s.name, lat: s.lat, lon: s.lon });
+  return [];
+});
 
 const stationsById = new Map(raw.stations.map((s) => [s.id, s]));
 
 const lines = raw.lines.map((line) => {
   const stops = raw.lineStops[line.id] ?? [];
   const shape = raw.lineShapes[line.id] ?? {};
-  const count = (dir) => stops.filter((s) => s.direction === dir).length;
+  const directions = [...new Set(stops.map((s) => s.direction))].sort();
+  const stopsOf = (dir) =>
+    stops.filter((s) => s.direction === dir).sort((a, b) => a.sequence - b.sequence);
   return {
     id: line.id,
     code: line.code,
     name: line.name,
-    stopCount: { G: count("G"), R: count("R") },
+    stopCount: Object.fromEntries(directions.map((d) => [d, stopsOf(d).length])),
+    // Her yönün ilk ve son durak adı: "Vakıfköy Merkez 1 → Heykel" gibi güzergâh özeti için
+    termini: Object.fromEntries(
+      directions.map((d) => {
+        const list = stopsOf(d);
+        return [d, [list[0]?.stopName ?? "", list.at(-1)?.stopName ?? ""]];
+      }),
+    ),
     hasShape: Object.keys(shape).length > 0,
   };
 });
@@ -55,7 +89,7 @@ const lines = raw.lines.map((line) => {
 const lineStops = Object.fromEntries(
   raw.lines.map((line) => {
     const stops = [...(raw.lineStops[line.id] ?? [])].sort(
-      (a, b) => a.direction.localeCompare(b.direction) || a.sequence - b.sequence,
+      (a, b) => byDirection(a, b) || a.sequence - b.sequence,
     );
     const byDir = {};
     for (const s of stops) (byDir[s.direction] ??= []).push({ seq: s.sequence, stopId: s.stopId });
@@ -89,6 +123,8 @@ const meta = {
   servedStationCount: stations.filter((s) => s.lines.length).length,
   directions: DIRECTION_TR,
   collectionErrors: raw.meta.errors,
+  repairedStationCount: repairedStations.length,
+  droppedStations,
 };
 
 const write = (name, data) => writeFile(new URL(name, outDir), JSON.stringify(data) + "\n");
@@ -120,10 +156,23 @@ addSheet(
     { header: "Hat Kodu", key: "code", width: 12 },
     { header: "Hat No (servis)", key: "id", width: 15 },
     { header: "Gidiş Durak Sayısı", key: "g", width: 18 },
-    { header: "Dönüş Durak Sayısı", key: "r", width: 18 },
-    { header: "Güzergâh Var", key: "shape", width: 14 },
+    { header: "Dönüş Durak Sayısı", key: "d", width: 18 },
+    { header: "Ring Durak Sayısı", key: "r", width: 17 },
+    { header: "Güzergâh", key: "route", width: 60 },
+    { header: "Güzergâh Çizgisi Var", key: "shape", width: 20 },
   ],
-  lines.map((l) => ({ code: l.code, id: l.id, g: l.stopCount.G, r: l.stopCount.R, shape: l.hasShape ? "Evet" : "Hayır" })),
+  lines.map((l) => {
+    const dir = ["G", "D", "R"].find((d) => l.termini[d]);
+    return {
+      code: l.code,
+      id: l.id,
+      g: l.stopCount.G ?? 0,
+      r: l.stopCount.R ?? 0,
+      d: l.stopCount.D ?? 0,
+      route: dir ? l.termini[dir].join(" → ") : "",
+      shape: l.hasShape ? "Evet" : "Hayır",
+    };
+  }),
 );
 
 addSheet(
@@ -142,7 +191,7 @@ addSheet(
 const stopRows = [];
 for (const line of raw.lines) {
   const stops = [...(raw.lineStops[line.id] ?? [])].sort(
-    (a, b) => b.direction.localeCompare(a.direction) || a.sequence - b.sequence, // önce G, sonra R
+    (a, b) => byDirection(a, b) || a.sequence - b.sequence,
   );
   for (const s of stops) {
     stopRows.push({
@@ -184,7 +233,7 @@ if (rawSchedules) {
   for (const line of raw.lines) {
     const byDir = rawSchedules.schedules[line.id];
     if (!byDir) continue;
-    for (const dir of Object.keys(byDir).sort().reverse()) {
+    for (const dir of DIRECTION_ORDER.filter((d) => byDir[d])) {
       const from = firstStopName(line.id, dir);
       (schedules[line.code] ??= {})[dir] = { from, days: byDir[dir] };
       for (const day of Object.keys(byDir[dir]).sort()) {
@@ -234,8 +283,10 @@ info.addRows([
   ["Hat sayısı", meta.lineCount],
   ["Durak sayısı", meta.stationCount],
   ["En az bir hattın geçtiği durak", meta.servedStationCount],
-  ["Yön kodları", "G = Gidiş, R = Dönüş"],
+  ["Yön kodları", "G = Gidiş, D = Dönüş, R = Ring (tek yönlü dairesel hat)"],
   ["Toplama hataları", meta.collectionErrors.length],
+  ["Onarılan durak koordinatı", meta.repairedStationCount],
+  ["Koordinatı bozuk olduğu için çıkarılan durak", meta.droppedStations.length],
   ...(rawSchedules
     ? [
         ["Sefer saatleri toplanma zamanı", meta.scheduleCollectedAt],

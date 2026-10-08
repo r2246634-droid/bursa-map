@@ -1,13 +1,18 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowUpDown, Info, X } from "lucide-react";
+import { ArrowUpDown, X } from "lucide-react";
 
 import type { RouteEndpoints } from "@/components/map/RouteOverlay";
 import type { Place } from "@/data/types";
 import { formatDistance, haversineMeters } from "@/lib/geo";
+import type { JourneysState } from "@/lib/routing/client";
 
+import JourneyList from "./JourneyList";
 import PlaceCombobox from "./PlaceCombobox";
+
+/** Yol tarifinde uç nokta bir yer olmalı; otobüs hatları önerilmez */
+const isEndpointCandidate = (place: Place) => place.kind !== "line";
 
 interface RoutePanelProps extends RouteEndpoints {
   open: boolean;
@@ -15,13 +20,27 @@ interface RoutePanelProps extends RouteEndpoints {
   onClose: () => void;
   /** Panelin görünen yüksekliği; harita odaklanırken bu alanı boş bırakır */
   onHeightChange: (height: number) => void;
+  /** Sunucudan (RAPTOR) gelen yol tarifi seçenekleri */
+  journeys: JourneysState;
+  selectedJourney: number;
+  onSelectJourney: (index: number) => void;
 }
 
 /**
  * Alttan açılan "Yol Tarifi" paneli. Kapalıyken de DOM'da kalır (kaydırma animasyonu ve
  * yazılan metinlerin korunması için); `inert` ile odak ve ekran okuyucudan gizlenir.
  */
-export default function RoutePanel({ open, from, to, onChange, onClose, onHeightChange }: RoutePanelProps) {
+export default function RoutePanel({
+  open,
+  from,
+  to,
+  onChange,
+  onClose,
+  onHeightChange,
+  journeys,
+  selectedJourney,
+  onSelectJourney,
+}: RoutePanelProps) {
   const sheetRef = useRef<HTMLElement>(null);
   // Kutudaki metin seçili yerden bağımsız: kullanıcı yazarken seçim temizlenir
   const [fromText, setFromText] = useState(from?.name ?? "");
@@ -89,7 +108,7 @@ export default function RoutePanel({ open, from, to, onChange, onClose, onHeight
       aria-label="Yol tarifi"
       aria-hidden={!open}
       inert={!open}
-      className={`absolute inset-x-0 bottom-0 z-[1100] mx-auto max-w-lg rounded-t-3xl bg-white/95 px-4 pt-2 pb-4 shadow-[0_-8px_30px_rgb(15_23_42/0.15)] backdrop-blur-md transition-transform duration-300 ease-out ${
+      className={`absolute inset-x-0 bottom-0 z-[1100] mx-auto max-h-[88%] max-w-lg overflow-y-auto overscroll-contain rounded-t-3xl bg-white/95 px-4 pt-2 pb-4 shadow-[0_-8px_30px_rgb(15_23_42/0.15)] backdrop-blur-md transition-transform duration-300 ease-out ${
         open ? "translate-y-0" : "translate-y-full"
       }`}
     >
@@ -116,6 +135,7 @@ export default function RoutePanel({ open, from, to, onChange, onClose, onHeight
             placeholder="Nereden?"
             ariaLabel="Nereden"
             listPlacement="inline"
+            filter={isEndpointCandidate}
             leading={<EndpointDot variant="from" />}
             fieldClassName="h-12 rounded-2xl bg-slate-100 px-3"
           />
@@ -126,6 +146,7 @@ export default function RoutePanel({ open, from, to, onChange, onClose, onHeight
             placeholder="Nereye?"
             ariaLabel="Nereye"
             listPlacement="inline"
+            filter={isEndpointCandidate}
             leading={<EndpointDot variant="to" />}
             fieldClassName="h-12 rounded-2xl bg-slate-100 px-3"
           />
@@ -141,19 +162,16 @@ export default function RoutePanel({ open, from, to, onChange, onClose, onHeight
         </button>
       </div>
 
-      <div className="mt-4 rounded-2xl bg-slate-50 p-3 text-sm" aria-live="polite">
+      <div className="mt-4">
         {distance !== null ? (
           <>
-            <p className="font-medium text-slate-900">
+            <JourneyList state={journeys} selectedIndex={selectedJourney} onSelect={onSelectJourney} />
+            <p className="mt-2 px-1 text-xs text-slate-400">
               Kuş uçuşu mesafe: <span className="tabular-nums">{formatDistance(distance)}</span>
-            </p>
-            <p className="mt-1 flex items-start gap-1.5 text-xs text-slate-500">
-              <Info className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden />
-              Toplu taşıma ile gerçek rota hesaplaması yakında eklenecek.
             </p>
           </>
         ) : (
-          <p className="text-slate-500">
+          <p className="rounded-2xl bg-slate-50 p-3 text-sm text-slate-500">
             {from || to ? "Diğer noktayı da seçin." : "Başlangıç ve varış noktasını seçin."}
           </p>
         )}

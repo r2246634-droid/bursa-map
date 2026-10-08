@@ -3,9 +3,8 @@
 import { useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { X } from "lucide-react";
 
-import { PLACES } from "@/data/places";
 import type { Place } from "@/data/types";
-import { searchByName } from "@/lib/search";
+import { ensureBusPlacesLoaded, usePlaceIndex } from "@/lib/place-search";
 
 import { PlaceIcon, PlaceMeta } from "./PlaceVisuals";
 
@@ -25,6 +24,8 @@ interface PlaceComboboxProps {
   /** Giriş satırının görünümü (arka plan, yükseklik, köşe) */
   fieldClassName?: string;
   limit?: number;
+  /** Önerileri daraltır, ör. yol tarifinde hatlar uç nokta olamaz */
+  filter?: (place: Place) => boolean;
 }
 
 /**
@@ -42,13 +43,15 @@ export default function PlaceCombobox({
   listPlacement = "overlay",
   fieldClassName = "",
   limit = 8,
+  filter,
 }: PlaceComboboxProps) {
   const listId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const [focused, setFocused] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
 
-  const suggestions = useMemo(() => searchByName(PLACES, value, limit), [value, limit]);
+  const index = usePlaceIndex();
+  const suggestions = useMemo(() => index.search(value, limit, filter), [index, value, limit, filter]);
   const open = focused && value.trim() !== "";
 
   const select = (place: Place) => {
@@ -97,7 +100,10 @@ export default function PlaceCombobox({
             setActiveIndex(0);
             setFocused(true);
           }}
-          onFocus={() => setFocused(true)}
+          onFocus={() => {
+            setFocused(true);
+            void ensureBusPlacesLoaded(); // otobüs hat/durakları ilk aramada yüklensin
+          }}
           onBlur={() => setFocused(false)}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}

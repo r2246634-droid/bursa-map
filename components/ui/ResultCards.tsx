@@ -1,11 +1,14 @@
 "use client";
 
 import { MapPin, Navigation, X } from "lucide-react";
+import type { ReactNode } from "react";
 
 import { LINE_NAMES } from "@/data/transit-network";
-import type { Place } from "@/data/types";
+import type { BusLine, Place } from "@/data/types";
+import { DIRECTION_LABEL, DIRECTION_ORDER, formatStopName } from "@/lib/burulas";
 import { useReverseGeocode } from "@/lib/use-reverse-geocode";
 
+import FavoriteButton from "./FavoriteButton";
 import { LineBadge, PlaceIcon, PlaceMeta, TransferTag, placeSubtitle } from "./PlaceVisuals";
 
 interface ResultCardsProps {
@@ -15,6 +18,8 @@ interface ResultCardsProps {
   onClearSelection: () => void;
   /** "Buradan / Buraya yol tarifi": seçili yeri rotanın başlangıç veya varış noktası yapar */
   onDirections: (place: Place, end: "from" | "to") => void;
+  /** Durak kartındaki bir otobüs hattına dokunuldu */
+  onSelectLine: (code: string) => void;
 }
 
 /**
@@ -27,17 +32,23 @@ export default function ResultCards({
   onSelect,
   onClearSelection,
   onDirections,
+  onSelectLine,
 }: ResultCardsProps) {
   if (selected) {
     return (
       <div className="px-4 pb-3">
-        {/* key: başka yer seçilince kartın iç durumu (adres) sıfırlansın */}
-        <PlaceDetailCard
-          key={selected.id}
-          place={selected}
-          onClose={onClearSelection}
-          onDirections={onDirections}
-        />
+        {selected.kind === "line" ? (
+          <LineDetailCard place={selected} line={selected.line} onClose={onClearSelection} />
+        ) : (
+          // key: başka yer seçilince kartın iç durumu (adres) sıfırlansın
+          <PlaceDetailCard
+            key={selected.id}
+            place={selected}
+            onClose={onClearSelection}
+            onDirections={onDirections}
+            onSelectLine={onSelectLine}
+          />
+        )}
       </div>
     );
   }
@@ -65,13 +76,83 @@ export default function ResultCards({
   );
 }
 
+/** Kartların ortak çerçevesi: ikon, başlık, alt başlık, kaydet ve kapat düğmeleri */
+function CardShell({
+  place,
+  favoritePlace = place,
+  title,
+  subtitle,
+  onClose,
+  children,
+}: {
+  place: Place;
+  /** Kaydedilecek hali (ör. bırakılan iğnenin adres sorgusundan gelen adı) */
+  favoritePlace?: Place;
+  title: string;
+  subtitle: ReactNode;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <article aria-label={`${title} bilgileri`} className="glass mx-auto max-w-md rounded-3xl p-4">
+      <header className="flex items-start gap-3">
+        <PlaceIcon place={place} className="h-12 w-12" />
+        <div className="min-w-0 flex-1">
+          <h2 className="text-base leading-tight font-semibold text-slate-900">{title}</h2>
+          <p className="mt-0.5 flex items-center gap-1.5 text-sm text-slate-500">{subtitle}</p>
+        </div>
+        <div className="-mt-1 -mr-1 flex items-center">
+          <FavoriteButton place={favoritePlace} />
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Bilgi kartını kapat"
+            className="rounded-full p-1.5 text-slate-500 hover:bg-slate-900/5"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+      </header>
+      {children}
+    </article>
+  );
+}
+
+/** Otobüs hattı: yönler, her yönün başlangıç → bitiş durağı ve durak sayısı */
+function LineDetailCard({ place, line, onClose }: { place: Place; line: BusLine; onClose: () => void }) {
+  const directions = DIRECTION_ORDER.filter((d) => line.termini[d]);
+  return (
+    <CardShell place={place} title={`${line.code} hattı`} subtitle={placeSubtitle(place)} onClose={onClose}>
+      <ul className="mt-3 space-y-2 border-t border-slate-900/10 pt-3">
+        {directions.map((dir) => {
+          const [from, to] = line.termini[dir]!;
+          return (
+            <li key={dir} className="text-sm">
+              <span className="mr-2 inline-block w-12 text-xs font-medium tracking-wide text-slate-500 uppercase">
+                {DIRECTION_LABEL[dir]}
+              </span>
+              <span className="text-slate-800">
+                {formatStopName(from).name} → {formatStopName(to).name}
+              </span>
+              <span className="ml-1.5 text-xs whitespace-nowrap text-slate-400">
+                {line.stopCount[dir]} durak
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </CardShell>
+  );
+}
+
 interface PlaceDetailCardProps {
   place: Place;
   onClose: () => void;
   onDirections: (place: Place, end: "from" | "to") => void;
+  onSelectLine: (code: string) => void;
 }
 
-function PlaceDetailCard({ place, onClose, onDirections }: PlaceDetailCardProps) {
+function PlaceDetailCard({ place, onClose, onDirections, onSelectLine }: PlaceDetailCardProps) {
   const geocode = useReverseGeocode(place.position);
   const resolved = geocode.status === "done" ? geocode.result : null;
   // Boş noktaya bırakılan iğnenin adı adres sorgusundan gelir ("Seçilen konum" yerine)
@@ -80,30 +161,41 @@ function PlaceDetailCard({ place, onClose, onDirections }: PlaceDetailCardProps)
   const routePlace = title === place.name ? place : { ...place, name: title };
 
   return (
-    <article
-      aria-label={`${place.name} bilgileri`}
-      className="glass mx-auto max-w-md rounded-3xl p-4"
+    <CardShell
+      place={place}
+      favoritePlace={routePlace}
+      title={title}
+      onClose={onClose}
+      subtitle={
+        <>
+          {placeSubtitle(place)}
+          {place.kind === "station" && place.transfer && <TransferTag />}
+        </>
+      }
     >
-      <header className="flex items-start gap-3">
-        <PlaceIcon place={place} className="h-12 w-12" />
-        <div className="min-w-0 flex-1">
-          <h2 className="text-base leading-tight font-semibold text-slate-900">{title}</h2>
-          <p className="mt-0.5 flex items-center gap-1.5 text-sm text-slate-500">
-            {placeSubtitle(place)}
-            {place.kind === "station" && place.transfer && <TransferTag />}
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Bilgi kartını kapat"
-          className="-mt-1 -mr-1 rounded-full p-1.5 text-slate-500 hover:bg-slate-900/5"
-        >
-          <X className="h-5 w-5" />
-        </button>
-      </header>
+      {place.kind === "station" && place.mode === "bus" && (
+        <section className="mt-3 border-t border-slate-900/10 pt-3">
+          <h3 className="mb-2 text-xs font-medium tracking-wide text-slate-500 uppercase">
+            Geçen hatlar ({place.lines.length})
+          </h3>
+          <ul className="flex max-h-24 flex-wrap gap-1.5 overflow-y-auto">
+            {place.lines.map((code) => (
+              <li key={code}>
+                <button
+                  type="button"
+                  onClick={() => onSelectLine(code)}
+                  aria-label={`${code} hattını haritada göster`}
+                  className="rounded-md active:scale-95"
+                >
+                  <LineBadge line={code} bus />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
-      {place.kind === "station" && (
+      {place.kind === "station" && place.mode !== "bus" && (
         <section className="mt-3 border-t border-slate-900/10 pt-3">
           <h3 className="mb-2 text-xs font-medium tracking-wide text-slate-500 uppercase">
             Geçen hatlar
@@ -143,7 +235,7 @@ function PlaceDetailCard({ place, onClose, onDirections }: PlaceDetailCardProps)
           Buradan başla
         </button>
       </div>
-    </article>
+    </CardShell>
   );
 }
 

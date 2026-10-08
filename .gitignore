@@ -88,3 +88,7 @@ desktop.ini
 
 # Claude Code yerel ayarları (kişisel izinler)
 .claude/settings.local.json
+
+# Hat başına bölünmüş güzergâhlar: data/burulas/line-shapes.json'dan
+# scripts/split-shapes.mjs üretir (predev/prebuild'de otomatik)
+public/data/burulas/shapes/

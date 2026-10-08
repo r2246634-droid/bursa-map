@@ -4,13 +4,12 @@ import { Layer, Source } from "react-map-gl/maplibre";
 import type { ExpressionSpecification } from "maplibre-gl";
 
 import { NETWORK_BY_MODE } from "@/data/transit-network";
-import type { LineRef, TransitMode } from "@/data/types";
+import type { LineRef, RailMode } from "@/data/types";
 import { LABEL_FONT } from "@/lib/map-config";
 
 /**
- * Görsel hiyerarşi: metro > tramvay > otobüs. Kalınlık, istasyon boyutu ve etiketlerin
- * göründüğü yakınlaştırma buna göre. Otobüs durakları kalabalık yapmasın diye sadece
- * yakınlaşınca (minStationZoom) gösteriliyor.
+ * Görsel hiyerarşi: metro > tramvay (> otobüs, bkz. BusStopsLayer). Kalınlık, istasyon boyutu
+ * ve etiketlerin göründüğü yakınlaştırma buna göre.
  * radius/stroke: daire yarıçapı ve kenar kalınlığı (px); toplam çap ≈ 2 × (radius + stroke).
  */
 const MODE_STYLE = {
@@ -28,25 +27,15 @@ const MODE_STYLE = {
     minStationZoom: 0,
     minLabelZoom: 14,
   },
-  bus: {
-    weight: 2,
-    casingWeight: 4,
-    station: { radius: 2, stroke: 1.5, transferRadius: 2.5, transferStroke: 2, color: "#475569" },
-    minStationZoom: 13,
-    minLabelZoom: 15.5,
-  },
-} as const satisfies Record<TransitMode, object>;
+} as const satisfies Record<RailMode, object>;
 
 /**
  * Aynı yolu paylaşan hatları zıt yönlere kaydırarak (line-offset) yan yana gösteriyoruz.
- * Kaydırma çizim yönüne göre; B1/B2 veri betiğinde batı → doğu yazılıyor,
- * 801/901 ise ortak bölümde ikisi de Üniversite yönüne gidiyor.
+ * Kaydırma çizim yönüne göre; B1/B2 veri betiğinde batı → doğu yazılıyor.
  */
 const LINE_OFFSETS: Partial<Record<LineRef, number>> = {
   B1: -MODE_STYLE.metro.weight / 2,
   B2: MODE_STYLE.metro.weight / 2,
-  "801": MODE_STYLE.bus.weight / 2,
-  "901": -MODE_STYLE.bus.weight / 2,
 };
 
 const OFFSET_EXPRESSION: ExpressionSpecification = [
@@ -61,19 +50,19 @@ const IS_STATION: ExpressionSpecification = ["==", ["get", "type"], "station"];
 const IS_TRANSFER: ExpressionSpecification = ["==", ["get", "transfer"], true];
 
 /** Haritada tıklanabilir istasyon katmanının kimliği */
-export const stationLayerId = (mode: TransitMode) => `transit-${mode}-stations`;
+export const stationLayerId = (mode: RailMode) => `transit-${mode}-stations`;
 
 interface TransitLayerProps {
-  mode: TransitMode;
+  mode: RailMode;
   visible: boolean;
   /** Hat çizgileri bu altlık katmanının altına eklenir (sokak adları hattın üstünde kalsın) */
   lineBeforeId?: string;
 }
 
 /**
- * Tek bir toplu taşıma türünün hatlarını, duraklarını ve durak adlarını çizer.
+ * Tek bir raylı sistem türünün hatlarını, istasyonlarını ve istasyon adlarını çizer.
  * Katman açılıp kapanınca kaynak silinmiyor, sadece `visibility` değişiyor: böylece türler
- * arası çizim sırası (otobüs < tramvay < metro) her zaman ilk eklendiği gibi kalıyor.
+ * arası çizim sırası (tramvay < metro) her zaman ilk eklendiği gibi kalıyor.
  */
 export default function TransitLayer({ mode, visible, lineBeforeId }: TransitLayerProps) {
   const style = MODE_STYLE[mode];

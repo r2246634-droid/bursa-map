@@ -2,11 +2,12 @@
   "source": "bursakart.com.tr (BURULAŞ) — Otobüsüm Nerede ekranının kullandığı servis",
   "collectedAt": "2026-10-07T14:29:59.671Z",
   "lineCount": 409,
-  "stationCount": 7723,
+  "stationCount": 7714,
   "servedStationCount": 7549,
   "directions": {
     "G": "Gidiş",
-    "R": "Dönüş"
+    "D": "Dönüş",
+    "R": "Ring"
   },
   "collectionErrors": [
     {
@@ -14,6 +15,63 @@
       "line": "Hat Seçilmemiş",
       "id": 65535,
       "error": "Error: HTTP 400"
+    }
+  ],
+  "repairedStationCount": 220,
+  "droppedStations": [
+    {
+      "id": 4914,
+      "name": "ÇELTİKÇİ 9 (M.KEMALPAŞA) (D10-79)",
+      "lat": 40.061788,
+      "lon": 40.061788
+    },
+    {
+      "id": 5696,
+      "name": "BOYALICA 1 (D6-114)",
+      "lat": 40.48354,
+      "lon": 40.48354
+    },
+    {
+      "id": 6170,
+      "name": "ORTAKÖY YOLU 1 (D5-213)",
+      "lat": 40.06218,
+      "lon": 40.06218
+    },
+    {
+      "id": 6469,
+      "name": "BUDO Eminönü (BUDO Eminönü)",
+      "lat": 41.017091,
+      "lon": 41.017091
+    },
+    {
+      "id": 6470,
+      "name": "BUDO Büyükçekmece (BUDO Büyükçekmece)",
+      "lat": 41.015338,
+      "lon": 41.015338
+    },
+    {
+      "id": 6471,
+      "name": "BUDO Mudanya (BUDO Mudanya)",
+      "lat": 40.374177,
+      "lon": 40.374177
+    },
+    {
+      "id": 6472,
+      "name": "BUDO Armutlu (BUDO Armutlu (İhlas))",
+      "lat": 40.517413,
+      "lon": 40.517413
+    },
+    {
+      "id": 7295,
+      "name": "İZNİK OTOGAR (D6-20 S İZNİK OTOGAR)",
+      "lat": 40.426351,
+      "lon": 40.426351
+    },
+    {
+      "id": 18979,
+      "name": "İnegöl Hayvan Pazarı (MK0075)",
+      "lat": 40.051906,
+      "lon": 40.051906
     }
   ],
   "scheduleCollectedAt": "2026-10-07T14:35:15.663Z",

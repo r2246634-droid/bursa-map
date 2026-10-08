@@ -2,6 +2,8 @@
 
 import { Bookmark, Bus, Map as MapIcon, Navigation, type LucideIcon } from "lucide-react";
 
+import { useFavoriteCount } from "@/lib/favorites";
+
 export type TabId = "map" | "lines" | "route" | "saved";
 
 const TABS: { id: TabId; label: string; icon: LucideIcon }[] = [
@@ -16,8 +18,8 @@ interface BottomNavProps {
   onChange: (tab: TabId) => void;
 }
 
-/** "Hatlar" ve "Kayıtlı" sekmeleri henüz sadece görsel; içerikleri sonraki aşamada. */
 export default function BottomNav({ active, onChange }: BottomNavProps) {
+  const savedCount = useFavoriteCount();
   return (
     <nav
       aria-label="Ana gezinme"
@@ -36,7 +38,14 @@ export default function BottomNav({ active, onChange }: BottomNavProps) {
                   isActive ? "text-blue-600" : "text-slate-500"
                 }`}
               >
-                <Icon className="h-5 w-5" strokeWidth={isActive ? 2.5 : 2} />
+                <span className="relative">
+                  <Icon className="h-5 w-5" strokeWidth={isActive ? 2.5 : 2} />
+                  {id === "saved" && savedCount > 0 && (
+                    <span className="absolute -top-1.5 -right-2.5 min-w-4 rounded-full bg-rose-500 px-1 text-center text-[10px] leading-4 font-semibold text-white">
+                      {savedCount > 99 ? "99+" : savedCount}
+                    </span>
+                  )}
+                </span>
                 {label}
               </button>
             </li>

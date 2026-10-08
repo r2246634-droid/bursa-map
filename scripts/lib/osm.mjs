@@ -134,9 +134,12 @@ export function stitchWays(wayCoords) {
   let current = null;
   let waysInCurrent = 0;
 
+  const touches = (point, way) => sameCoord(point, way[0]) || sameCoord(point, way.at(-1));
+
   for (const way of wayCoords) {
-    if (current && waysInCurrent === 1 && !sameCoord(current.at(-1), way[0]) && !sameCoord(current.at(-1), way.at(-1))) {
-      // Parçanın ilk yolu ters yönde girilmiş olabilir: çevirip bir daha dene
+    // Parçanın ilk yolu ters yönde girilmiş olabilir: sonu değil de başı yeni yola değiyorsa çevir.
+    // (Hiçbir ucu değmiyorsa çevrilmez; kopuk parça kendi yönünde kalır.)
+    if (current && waysInCurrent === 1 && !touches(current.at(-1), way) && touches(current[0], way)) {
       current.reverse();
     }
 
@@ -185,20 +188,6 @@ export const toLineGeometry = (parts) =>
     ? { type: "LineString", coordinates: parts[0] }
     : { type: "MultiLineString", coordinates: parts };
 
-/**
- * İsimden kararlı kimlik: "metro", "Bursaspor/Acemler" → "metro-bursaspor-acemler".
- * Sıra numarası yerine isim kullanıyoruz ki veri yenilenince id'ler (ör. kayıtlı yerler) bozulmasın.
- */
-export function slugId(prefix, name) {
-  const TR = { ı: "i", ş: "s", ğ: "g", ü: "u", ö: "o", ç: "c" };
-  const slug = name
-    .toLocaleLowerCase("tr-TR")
-    .replace(/[ışğüöç]/g, (ch) => TR[ch])
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
-  return `${prefix}-${slug}`;
-}
+export { slugId } from "./naming.mjs";
 
 export const ATTRIBUTION ="© OpenStreetMap katkıda bulunanlar (ODbL)";
