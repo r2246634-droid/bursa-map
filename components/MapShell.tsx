@@ -17,6 +17,7 @@ import { POIS } from "@/data/pois";
 import type { LayerId, Place } from "@/data/types";
 import { busLinePlaceId } from "@/lib/burulas";
 import { useHydrateFavorites } from "@/lib/favorites";
+import { getCurrentPlace, locationErrorMessage, locationPermissionGranted } from "@/lib/geolocation";
 import { journeysUrl, useJourneys } from "@/lib/routing/client";
 import { droppedPin } from "@/lib/map-features";
 import { ensureBusPlacesLoaded, findPlaceById, usePlaceIndex } from "@/lib/place-search";
@@ -83,6 +84,30 @@ export default function MapShell() {
     for (const layer of ["metro", "tram", "bus"] as const) next.delete(layer);
     return next;
   }, [routeActive, visibleLayers]);
+
+  /** "Konumum": cihaz konumunu yol tarifinin başlangıcı yapar */
+  const [locating, setLocating] = useState(false);
+  const startFromMyLocation = async ({ silent = false } = {}) => {
+    setLocating(true);
+    try {
+      const here = await getCurrentPlace();
+      // Kullanıcı bu arada başka bir başlangıç seçtiyse üzerine yazma
+      setRoute((prev) => (silent && prev.from ? prev : { ...prev, from: here }));
+      setRouteCollapsed(false);
+    } catch (error) {
+      if (!silent) showNotice(locationErrorMessage(error));
+    } finally {
+      setLocating(false);
+    }
+  };
+
+  /**
+   * Başlangıç boşken, konum izni daha önce verilmişse sormadan konumdan başla (Google Haritalar gibi).
+   * İzin hiç verilmemişse izin penceresi kendiliğinden açılmaz; kullanıcı "Konumum"a basar.
+   */
+  const autoStartFromMyLocation = async () => {
+    if (await locationPermissionGranted()) void startFromMyLocation({ silent: true });
+  };
 
   /** Tutamaçla küçült/büyüt: rota yeni alana yeniden sığdırılır */
   const handleRouteCollapsedChange = (collapsed: boolean) => {
@@ -160,6 +185,7 @@ export default function MapShell() {
     setRouteCollapsed(false);
     setSelectedPlace(null);
     setActiveTab("route");
+    if (end === "to" && !route.from) void autoStartFromMyLocation();
   };
 
   const handleTabChange = (tab: TabId) => {
@@ -167,6 +193,7 @@ export default function MapShell() {
     setActiveTab((current) => (current === tab ? "map" : tab));
     setLayerPanelOpen(false);
     if (tab === "route") setSelectedPlace(null); // seçili yerin bilgi kartı panelin arkasında kalmasın
+    if (tab === "route" && activeTab !== "route" && !route.from) void autoStartFromMyLocation();
   };
 
   /** Hatlar/Kayıtlı panelinden bir öğe seçildi: paneli kapat, haritada göster */
@@ -250,6 +277,8 @@ export default function MapShell() {
           onSelectJourney={(index) => setJourneyChoice({ url: currentUrl, index })}
           collapsed={routeCollapsed}
           onCollapsedChange={handleRouteCollapsedChange}
+          onUseMyLocation={() => void startFromMyLocation()}
+          locating={locating}
         />
 
         <LinesPanel open={activeTab === "lines"} onClose={closePanel} onSelectLine={handlePanelSelect} />

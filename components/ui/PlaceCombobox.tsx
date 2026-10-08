@@ -16,6 +16,8 @@ interface PlaceComboboxProps {
   ariaLabel: string;
   /** Kutunun solundaki ikon/işaret */
   leading?: ReactNode;
+  /** Kutu boşken sağda gösterilir (ör. "Konumum" butonu); yazınca yerini temizle butonu alır */
+  trailingWhenEmpty?: ReactNode;
   /**
    * overlay: liste kutunun altında haritanın üstüne açılır (üst arama çubuğu).
    * inline: liste akışın içinde açılır, kapsayıcıyı uzatır (alttan açılan panel).
@@ -40,6 +42,7 @@ export default function PlaceCombobox({
   placeholder,
   ariaLabel,
   leading,
+  trailingWhenEmpty,
   listPlacement = "overlay",
   fieldClassName = "",
   limit = 8,
@@ -111,6 +114,7 @@ export default function PlaceCombobox({
           // 16px altı font iOS'ta otomatik zoom tetikler
           className="min-w-0 flex-1 bg-transparent text-base text-slate-900 outline-none placeholder:text-slate-500 [&::-webkit-search-cancel-button]:hidden"
         />
+        {!value && trailingWhenEmpty}
         {value && (
           <button
             type="button"

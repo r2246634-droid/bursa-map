@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowUpDown, Clock, X } from "lucide-react";
+import { ArrowUpDown, Clock, LocateFixed, X } from "lucide-react";
 
 import type { RouteEndpoints } from "@/components/map/RouteOverlay";
 import type { Place } from "@/data/types";
@@ -30,6 +30,10 @@ interface RoutePanelProps extends RouteEndpoints {
   /** Küçültülmüş: sadece seçili rotanın özeti görünür, harita alanı büyür */
   collapsed: boolean;
   onCollapsedChange: (collapsed: boolean) => void;
+  /** "Konumum": cihaz konumunu başlangıç yapar */
+  onUseMyLocation: () => void;
+  /** Konum alınıyor (buton dönen simgeye geçer) */
+  locating: boolean;
 }
 
 /** Tutamaçta bu kadar pikselden uzun sürükleme, dokunma değil kaydırma sayılır */
@@ -53,6 +57,8 @@ export default function RoutePanel({
   onSelectJourney,
   collapsed,
   onCollapsedChange,
+  onUseMyLocation,
+  locating,
 }: RoutePanelProps) {
   // Tutamaç: aşağı sürükle → küçült, yukarı sürükle → büyüt, dokun (veya Enter) → aç/kapa
   const dragStartY = useRef<number | null>(null);
@@ -206,6 +212,22 @@ export default function RoutePanel({
               onSelect={selectFrom}
               placeholder="Nereden?"
               ariaLabel="Nereden"
+              trailingWhenEmpty={
+                <button
+                  type="button"
+                  onClick={onUseMyLocation}
+                  disabled={locating}
+                  aria-label="Başlangıç olarak konumumu kullan"
+                  className="flex shrink-0 items-center gap-1 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-70"
+                >
+                  {locating ? (
+                    <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-blue-200 border-t-blue-700" />
+                  ) : (
+                    <LocateFixed className="h-3.5 w-3.5" aria-hidden />
+                  )}
+                  Konumum
+                </button>
+              }
               listPlacement="inline"
               filter={isEndpointCandidate}
               leading={<EndpointDot variant="from" />}
