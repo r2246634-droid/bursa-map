@@ -92,3 +92,7 @@ desktop.ini
 # Hat başına bölünmüş güzergâhlar: data/burulas/line-shapes.json'dan
 # scripts/split-shapes.mjs üretir (predev/prebuild'de otomatik)
 public/data/burulas/shapes/
+
+.vercel
+.env*
+!.env.example

@@ -1,0 +1,14 @@
+# Vercel'e yüklenmeyecekler (Vercel kendi kurulum/derlemesinde üretir ya da gerekmez)
+node_modules
+.next
+data/raw
+public/vendor
+public/data/burulas/shapes
+public/sw.js
+public/sw.js.map
+public/workbox-*.js
+public/workbox-*.js.map
+public/swe-worker-*.js
+.claude
+.env*.local
+*.tsbuildinfo
