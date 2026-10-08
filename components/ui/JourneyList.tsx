@@ -145,3 +145,32 @@ function LegStep({ leg }: { leg: JourneyLeg }) {
     </li>
   );
 }
+
+/**
+ * Panel küçültülmüşken gösterilen tek satırlık özet: seçili seçeneğin saatleri, süresi ve
+ * bacak çipleri. Seçenek yoksa durum metni.
+ */
+export function JourneySummary({ state, selectedIndex }: { state: JourneysState; selectedIndex: number }) {
+  if (state.status === "loading") return <span className="text-sm text-slate-500">Rota hesaplanıyor…</span>;
+  if (state.status !== "done" || state.data.journeys.length === 0) {
+    return <span className="text-sm text-slate-500">Rota seçenekleri için yukarı kaydırın</span>;
+  }
+  const journeys = state.data.journeys;
+  const journey = journeys[Math.min(selectedIndex, journeys.length - 1)];
+  return (
+    <span className="flex min-w-0 flex-col gap-1">
+      <span className="flex items-baseline gap-2 text-sm font-semibold text-slate-900 tabular-nums">
+        {formatClock(journey.departure)} → {formatClock(journey.arrival)}
+        <span className="font-normal text-slate-500">· {formatDuration(journey.durationMin)}</span>
+        {journeys.length > 1 && (
+          <span className="text-xs font-normal text-slate-400">({journeys.length} seçenek)</span>
+        )}
+      </span>
+      <span className="flex flex-wrap items-center gap-1">
+        {journey.legs.map((leg, i) => (
+          <LegChip key={i} leg={leg} />
+        ))}
+      </span>
+    </span>
+  );
+}

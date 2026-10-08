@@ -8,7 +8,7 @@ import type { Place } from "@/data/types";
 import { formatDistance, haversineMeters } from "@/lib/geo";
 import type { JourneysState } from "@/lib/routing/client";
 
-import JourneyList from "./JourneyList";
+import JourneyList, { JourneySummary } from "./JourneyList";
 import PlaceCombobox from "./PlaceCombobox";
 
 /** Yol tarifinde uç nokta bir yer olmalı; otobüs hatları önerilmez */
@@ -27,7 +27,13 @@ interface RoutePanelProps extends RouteEndpoints {
   onDepartAtChange: (value: string | null) => void;
   selectedJourney: number;
   onSelectJourney: (index: number) => void;
+  /** Küçültülmüş: sadece seçili rotanın özeti görünür, harita alanı büyür */
+  collapsed: boolean;
+  onCollapsedChange: (collapsed: boolean) => void;
 }
+
+/** Tutamaçta bu kadar pikselden uzun sürükleme, dokunma değil kaydırma sayılır */
+const DRAG_THRESHOLD_PX = 40;
 
 /**
  * Alttan açılan "Yol Tarifi" paneli. Kapalıyken de DOM'da kalır (kaydırma animasyonu ve
@@ -45,7 +51,44 @@ export default function RoutePanel({
   onDepartAtChange,
   selectedJourney,
   onSelectJourney,
+  collapsed,
+  onCollapsedChange,
 }: RoutePanelProps) {
+  // Tutamaç: aşağı sürükle → küçült, yukarı sürükle → büyüt, dokun (veya Enter) → aç/kapa
+  const dragStartY = useRef<number | null>(null);
+  const dragged = useRef(false);
+  const handleProps = {
+    onPointerDown: (e: React.PointerEvent<HTMLButtonElement>) => {
+      dragStartY.current = e.clientY;
+      dragged.current = false;
+      try {
+        // Parmak tutamaçtan kaysa da bırakma olayı buraya gelsin
+        e.currentTarget.setPointerCapture(e.pointerId);
+      } catch {
+        // Yakalama desteklenmiyorsa (eski tarayıcı) sürükleme yine çalışır, sadece daha hassas olur
+      }
+    },
+    onPointerUp: (e: React.PointerEvent<HTMLButtonElement>) => {
+      if (dragStartY.current === null) return;
+      const dy = e.clientY - dragStartY.current;
+      dragStartY.current = null;
+      if (Math.abs(dy) < DRAG_THRESHOLD_PX) return; // dokunma: onClick halleder
+      dragged.current = true;
+      onCollapsedChange(dy > 0);
+    },
+    onPointerCancel: () => {
+      dragStartY.current = null;
+    },
+    onClick: () => {
+      // Sürüklemenin ardından gelen click olayı ikinci kez değiştirmesin
+      if (dragged.current) {
+        dragged.current = false;
+        return;
+      }
+      onCollapsedChange(!collapsed);
+    },
+  };
+
   const sheetRef = useRef<HTMLElement>(null);
   // Kutudaki metin seçili yerden bağımsız: kullanıcı yazarken seçim temizlenir
   const [fromText, setFromText] = useState(from?.name ?? "");
@@ -117,9 +160,17 @@ export default function RoutePanel({
         open ? "translate-y-0" : "translate-y-full"
       }`}
     >
-      <div className="mx-auto mb-2 h-1.5 w-10 rounded-full bg-slate-300" aria-hidden />
+      <button
+        type="button"
+        {...handleProps}
+        aria-expanded={!collapsed}
+        aria-label={collapsed ? "Yol tarifi panelini büyüt" : "Yol tarifi panelini küçült, haritayı göster"}
+        className="-mx-4 -mt-2 mb-1 flex h-6 w-[calc(100%+2rem)] cursor-grab touch-none items-center justify-center active:cursor-grabbing"
+      >
+        <span className="h-1.5 w-10 rounded-full bg-slate-300" aria-hidden />
+      </button>
 
-      <header className="mb-3 flex items-center justify-between">
+      <header className={`flex items-center justify-between ${collapsed ? "mb-1" : "mb-3"}`}>
         <h2 className="text-base font-semibold text-slate-900">Yol Tarifi</h2>
         <button
           type="button"
@@ -131,78 +182,95 @@ export default function RoutePanel({
         </button>
       </header>
 
-      <div className="flex items-stretch gap-2">
-        <div className="min-w-0 flex-1 space-y-2">
-          <PlaceCombobox
-            value={fromText}
-            onChange={typeFrom}
-            onSelect={selectFrom}
-            placeholder="Nereden?"
-            ariaLabel="Nereden"
-            listPlacement="inline"
-            filter={isEndpointCandidate}
-            leading={<EndpointDot variant="from" />}
-            fieldClassName="h-12 rounded-2xl bg-slate-100 px-3"
-          />
-          <PlaceCombobox
-            value={toText}
-            onChange={typeTo}
-            onSelect={selectTo}
-            placeholder="Nereye?"
-            ariaLabel="Nereye"
-            listPlacement="inline"
-            filter={isEndpointCandidate}
-            leading={<EndpointDot variant="to" />}
-            fieldClassName="h-12 rounded-2xl bg-slate-100 px-3"
+      {collapsed && (
+        <button
+          type="button"
+          onClick={() => onCollapsedChange(false)}
+          className="w-full rounded-xl px-1 py-1 text-left hover:bg-slate-900/5"
+        >
+          {from && to ? (
+            <JourneySummary state={journeys} selectedIndex={selectedJourney} />
+          ) : (
+            <span className="text-sm text-slate-500">Başlangıç ve varış seçmek için yukarı kaydırın</span>
+          )}
+        </button>
+      )}
+
+      {/* Küçültülünce gizlenir ama DOM'da kalır: yazılan metinler ve seçimler korunur */}
+      <div hidden={collapsed}>
+        <div className="flex items-stretch gap-2">
+          <div className="min-w-0 flex-1 space-y-2">
+            <PlaceCombobox
+              value={fromText}
+              onChange={typeFrom}
+              onSelect={selectFrom}
+              placeholder="Nereden?"
+              ariaLabel="Nereden"
+              listPlacement="inline"
+              filter={isEndpointCandidate}
+              leading={<EndpointDot variant="from" />}
+              fieldClassName="h-12 rounded-2xl bg-slate-100 px-3"
+            />
+            <PlaceCombobox
+              value={toText}
+              onChange={typeTo}
+              onSelect={selectTo}
+              placeholder="Nereye?"
+              ariaLabel="Nereye"
+              listPlacement="inline"
+              filter={isEndpointCandidate}
+              leading={<EndpointDot variant="to" />}
+              fieldClassName="h-12 rounded-2xl bg-slate-100 px-3"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={swap}
+            disabled={!fromText && !toText}
+            aria-label="Başlangıç ve varış noktalarını değiştir"
+            className="mt-7 flex h-10 w-10 shrink-0 items-center justify-center self-start rounded-full text-slate-600 hover:bg-slate-900/5 disabled:opacity-40"
+          >
+            <ArrowUpDown className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="mt-3 flex items-center gap-2 text-sm">
+          <Clock className="h-4 w-4 shrink-0 text-slate-500" aria-hidden />
+          <button
+            type="button"
+            onClick={() => onDepartAtChange(null)}
+            aria-pressed={departAt === null}
+            className={`rounded-full px-3 py-1 font-medium ${
+              departAt === null ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-700"
+            }`}
+          >
+            Şimdi
+          </button>
+          <input
+            type="datetime-local"
+            value={departAt ?? ""}
+            onChange={(e) => onDepartAtChange(e.target.value || null)}
+            aria-label="Kalkış tarihi ve saati"
+            className={`min-w-0 flex-1 rounded-full px-3 py-1 text-base outline-none ${
+              departAt ? "bg-blue-50 text-blue-800 ring-1 ring-blue-500" : "bg-slate-100 text-slate-700"
+            }`}
           />
         </div>
-        <button
-          type="button"
-          onClick={swap}
-          disabled={!fromText && !toText}
-          aria-label="Başlangıç ve varış noktalarını değiştir"
-          className="mt-7 flex h-10 w-10 shrink-0 items-center justify-center self-start rounded-full text-slate-600 hover:bg-slate-900/5 disabled:opacity-40"
-        >
-          <ArrowUpDown className="h-5 w-5" />
-        </button>
-      </div>
 
-      <div className="mt-3 flex items-center gap-2 text-sm">
-        <Clock className="h-4 w-4 shrink-0 text-slate-500" aria-hidden />
-        <button
-          type="button"
-          onClick={() => onDepartAtChange(null)}
-          aria-pressed={departAt === null}
-          className={`rounded-full px-3 py-1 font-medium ${
-            departAt === null ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-700"
-          }`}
-        >
-          Şimdi
-        </button>
-        <input
-          type="datetime-local"
-          value={departAt ?? ""}
-          onChange={(e) => onDepartAtChange(e.target.value || null)}
-          aria-label="Kalkış tarihi ve saati"
-          className={`min-w-0 flex-1 rounded-full px-3 py-1 text-base outline-none ${
-            departAt ? "bg-blue-50 text-blue-800 ring-1 ring-blue-500" : "bg-slate-100 text-slate-700"
-          }`}
-        />
-      </div>
-
-      <div className="mt-4">
-        {distance !== null ? (
-          <>
-            <JourneyList state={journeys} selectedIndex={selectedJourney} onSelect={onSelectJourney} />
-            <p className="mt-2 px-1 text-xs text-slate-400">
-              Kuş uçuşu mesafe: <span className="tabular-nums">{formatDistance(distance)}</span>
+        <div className="mt-4">
+          {distance !== null ? (
+            <>
+              <JourneyList state={journeys} selectedIndex={selectedJourney} onSelect={onSelectJourney} />
+              <p className="mt-2 px-1 text-xs text-slate-400">
+                Kuş uçuşu mesafe: <span className="tabular-nums">{formatDistance(distance)}</span>
+              </p>
+            </>
+          ) : (
+            <p className="rounded-2xl bg-slate-50 p-3 text-sm text-slate-500">
+              {from || to ? "Diğer noktayı da seçin." : "Başlangıç ve varış noktasını seçin."}
             </p>
-          </>
-        ) : (
-          <p className="rounded-2xl bg-slate-50 p-3 text-sm text-slate-500">
-            {from || to ? "Diğer noktayı da seçin." : "Başlangıç ve varış noktasını seçin."}
-          </p>
-        )}
+          )}
+        </div>
       </div>
     </section>
   );

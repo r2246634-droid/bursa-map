@@ -56,6 +56,10 @@ export interface MapViewProps {
   route: RouteEndpoints | null;
   /** Seçili yol tarifi seçeneği (rota modunda) */
   journey: Journey | null;
+  /** Artınca rota panelin yeni yüksekliğine göre yeniden ekrana sığdırılır */
+  routeRefitToken: number;
+  /** Kullanıcı haritayı eliyle sürüklemeye başladı (ör. yol tarifi panelini küçültmek için) */
+  onUserDrag?: () => void;
   /** Haritanın altını kaplayan panelin yüksekliği (px) */
   bottomInset: number;
   /** Haritada bir istasyona, noktaya veya altlıktaki bir yere dokunuldu */
@@ -102,6 +106,8 @@ export default function MapView({
   selectedPlace,
   route,
   journey,
+  routeRefitToken,
+  onUserDrag,
   bottomInset,
   onPlaceClick,
   onEmptyClick,
@@ -192,6 +198,7 @@ export default function MapView({
         onMouseEnter={() => setCursor("pointer")}
         onMouseLeave={() => setCursor("grab")}
         onClick={handleClick}
+        onDragStart={onUserDrag}
         onPitchEnd={(e) => setPitched(e.target.getPitch() > 5)}
         attributionControl={{ compact: true }}
         style={{ width: "100%", height: "100%" }}
@@ -217,7 +224,13 @@ export default function MapView({
         )}
         {selectedPlace && selectedPlace.kind !== "line" && <SelectedMarker place={selectedPlace} />}
         <FlyToSelected place={selectedPlace} />
-        {route && <RouteOverlay from={route.from} to={route.to} journey={journey} bottomInset={bottomInset} />}
+        {route && <RouteOverlay
+            from={route.from}
+            to={route.to}
+            journey={journey}
+            bottomInset={bottomInset}
+            refitToken={routeRefitToken}
+          />}
       </MapGL>
 
       <button

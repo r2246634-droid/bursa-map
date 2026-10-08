@@ -19,6 +19,11 @@ interface RouteOverlayProps extends RouteEndpoints {
   journey: Journey | null;
   /** Haritanın altını kaplayan panelin yüksekliği (px); kamera bu alanı boş bırakır */
   bottomInset: number;
+  /**
+   * Her artışta rota, panelin yeni yüksekliğine göre yeniden ekrana sığdırılır
+   * (panel tutamaçla küçültülüp büyütüldüğünde; kullanıcı haritayı kendisi kaydırırken değil).
+   */
+  refitToken: number;
 }
 
 /** Üstteki arama/katman butonu satırının kapladığı alan */
@@ -31,15 +36,12 @@ type LegProps = { kind: "walk" | "ride"; color: string };
  * Yol tarifi: A/B işaretleri ve seçili seçeneğin bacakları — araç bacakları hat renginde,
  * yürüyüşler noktalı gri. Seçenek gelmeden önce kuş uçuşu kesik çizgi gösterilir.
  */
-export default function RouteOverlay({ from, to, journey, bottomInset }: RouteOverlayProps) {
+export default function RouteOverlay({ from, to, journey, bottomInset, refitToken }: RouteOverlayProps) {
   const { current: map } = useMap();
 
   // Panel boyu bilerek kamera efektinin bağımlılığı değil: öneri listesi açılıp panel uzayınca
   // kamera kendiliğinden kaymasın, sadece uç noktalar/seçenek değişince odaklansın.
   const bottomInsetRef = useRef(bottomInset);
-  useEffect(() => {
-    bottomInsetRef.current = bottomInset;
-  }, [bottomInset]);
 
   const legs = useMemo<FeatureCollection<LineString, LegProps> | null>(() => {
     if (from && to && !journey) {
@@ -69,7 +71,8 @@ export default function RouteOverlay({ from, to, journey, bottomInset }: RouteOv
     };
   }, [from, to, journey]);
 
-  useEffect(() => {
+  /** Kamerayı rotaya (yoksa seçili uca) odaklar; panel yüksekliğini o anki değerden okur */
+  const focus = () => {
     if (!map) return;
     // Panel ekranın çoğunu kaplayabilir (seçenek listesi uzayınca). Alt boşluk haritanın tamamını
     // yerse MapLibre fitBounds'u sessizce atlar; rota için en az ~120 px yükseklik bırakılır.
@@ -95,7 +98,38 @@ export default function RouteOverlay({ from, to, journey, bottomInset }: RouteOv
         duration: cameraDuration(800),
       });
     }
+  };
+  const focusRef = useRef(focus);
+  useEffect(() => {
+    focusRef.current = focus;
+  });
+
+  // Uç noktalar veya seçenek değişince odaklan
+  useEffect(() => {
+    focusRef.current();
   }, [map, from, to, legs]);
+
+  // Tutamaçla küçült/büyüt: panelin yeni yüksekliği ölçülüp bottomInset gelince yeniden sığdır.
+  // Yükseklik değişmezse (ölçüm gelmezse) kısa bir süre sonra yine de sığdır.
+  const pendingRefit = useRef(false);
+  useEffect(() => {
+    if (refitToken === 0) return;
+    pendingRefit.current = true;
+    const fallback = setTimeout(() => {
+      if (!pendingRefit.current) return;
+      pendingRefit.current = false;
+      focusRef.current();
+    }, 300);
+    return () => clearTimeout(fallback);
+  }, [refitToken]);
+
+  useEffect(() => {
+    bottomInsetRef.current = bottomInset;
+    if (pendingRefit.current) {
+      pendingRefit.current = false;
+      focusRef.current();
+    }
+  }, [bottomInset]);
 
   return (
     <>

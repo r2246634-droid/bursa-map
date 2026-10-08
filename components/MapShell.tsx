@@ -67,6 +67,28 @@ export default function MapShell() {
   }, []);
 
   const routeMode = activeTab === "route";
+  /** Yol tarifi panelinde iki uç da seçili: harita rotaya odaklanır */
+  const routeActive = routeMode && route.from !== null && route.to !== null;
+  const [routeCollapsed, setRouteCollapsed] = useState(false);
+  const [routeRefitToken, setRouteRefitToken] = useState(0);
+
+  /**
+   * Rota gösterilirken haritada sadece rotanın kendi bacakları kalsın: metro, tramvay ve
+   * otobüs durağı katmanları gizlenir (rota metro kullanıyorsa o bacak yine hat renginde çizilir).
+   * Kullanıcının katman ayarı değişmez; panel kapanınca katmanlar eski haline döner.
+   */
+  const mapLayers = useMemo(() => {
+    if (!routeActive) return visibleLayers;
+    const next = new Set(visibleLayers);
+    for (const layer of ["metro", "tram", "bus"] as const) next.delete(layer);
+    return next;
+  }, [routeActive, visibleLayers]);
+
+  /** Tutamaçla küçült/büyüt: rota yeni alana yeniden sığdırılır */
+  const handleRouteCollapsedChange = (collapsed: boolean) => {
+    setRouteCollapsed(collapsed);
+    setRouteRefitToken((t) => t + 1);
+  };
   /** Haritanın üstünü kaplayan bir panel açık mı (Rota, Hatlar, Kayıtlı): üst arama ve kartlar gizlenir */
   const panelOpen = activeTab !== "map";
 
@@ -119,6 +141,7 @@ export default function MapShell() {
   const handleMapPlaceClick = (place: Place) => {
     if (routeMode) {
       setRoute((prev) => (prev.from ? { ...prev, to: place } : { ...prev, from: place }));
+      setRouteCollapsed(false); // yeni uç seçildi: seçenekler görünsün
       revealLayerOf(place);
       return;
     }
@@ -134,6 +157,7 @@ export default function MapShell() {
 
   const handleDirections = (place: Place, end: "from" | "to") => {
     setRoute((prev) => ({ ...prev, [end]: place }));
+    setRouteCollapsed(false);
     setSelectedPlace(null);
     setActiveTab("route");
   };
@@ -153,6 +177,7 @@ export default function MapShell() {
 
   const handleRouteChange = (next: RouteEndpoints) => {
     setRoute(next);
+    setRouteCollapsed(false);
     if (next.from) revealLayerOf(next.from);
     if (next.to) revealLayerOf(next.to);
   };
@@ -166,10 +191,13 @@ export default function MapShell() {
         <div className="absolute inset-0 z-0">
           <BursaMap
             pois={POIS}
-            visibleLayers={visibleLayers}
+            visibleLayers={mapLayers}
             selectedPlace={selectedPlace}
             route={routeMode ? route : null}
             journey={routeMode ? selectedJourney : null}
+            routeRefitToken={routeRefitToken}
+            // Kullanıcı haritayı kaydırmaya başlayınca panel küçülür (kamera zıplamaz)
+            onUserDrag={() => routeActive && setRouteCollapsed(true)}
             bottomInset={routeMode ? routePanelHeight : 0}
             onPlaceClick={handleMapPlaceClick}
             onEmptyClick={handleEmptyMapClick}
@@ -220,6 +248,8 @@ export default function MapShell() {
           onDepartAtChange={setDepartAt}
           selectedJourney={selectedJourneyIndex}
           onSelectJourney={(index) => setJourneyChoice({ url: currentUrl, index })}
+          collapsed={routeCollapsed}
+          onCollapsedChange={handleRouteCollapsedChange}
         />
 
         <LinesPanel open={activeTab === "lines"} onClose={closePanel} onSelectLine={handlePanelSelect} />
