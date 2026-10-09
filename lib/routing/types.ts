@@ -19,9 +19,13 @@ export interface WalkLeg {
   type: "walk";
   from: RoutePoint;
   to: RoutePoint;
+  /** Yürüme mesafesi: sokak ağından (streetRouted) ya da kuş uçuşu × 1,25 tahmini */
   meters: number;
   departure: number;
   arrival: number;
+  /** Sokaklardan geçen güzergâh, [boylam, enlem]; yoksa haritada düz çizgi çizilir */
+  path?: [number, number][];
+  streetRouted?: boolean;
 }
 
 export interface RideLeg {

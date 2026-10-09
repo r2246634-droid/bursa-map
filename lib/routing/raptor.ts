@@ -34,7 +34,9 @@ const WALK_ONLY_MAX_M = 2500;
 const TRANSFER_PENALTY_S = 5 * 60;
 
 type Label =
+  /** meters: yürüme mesafesi (sokak ağı veya tahmin) */
   | { type: "access"; meters: number }
+  /** meters: kuş uçuşu (yürüme aktarması tahmini; sokak güzergâhı API'de sonradan eklenir) */
   | { type: "walk"; from: number; meters: number }
   | { type: "ride"; pattern: number; trip: number; board: number; alight: number };
 
@@ -48,6 +50,18 @@ export interface RouteQuery {
   /** Önceki/sonraki takvim gününün tarifesi (verilmezse haftanın komşu günü varsayılır) */
   previousDay?: number;
   nextDay?: number;
+  /**
+   * Başlangıçtan yakın duraklara / yakın duraklardan varışa gerçek yürüme mesafeleri (sokak ağı).
+   * Verilmezse kuş uçuşu × WALK_FACTOR tahmini kullanılır (bkz. accessCandidates).
+   */
+  access?: StopWalk[];
+  egress?: StopWalk[];
+}
+
+/** Bir durak ve oraya (veya oradan) yürüme mesafesi (metre) */
+export interface StopWalk {
+  stop: number;
+  walkMeters: number;
 }
 
 const DAY = 86_400;
@@ -96,20 +110,27 @@ function lowerBound(sorted: number[], value: number): number {
   return lo;
 }
 
-function accessStops(net: Network, p: RoutePoint) {
+/**
+ * Bir noktaya yürüme mesafesindeki, en az bir desenin geçtiği duraklar (kuş uçuşu metre).
+ * API bu adayların gerçek yürüme mesafesini sokak ağından sorar.
+ */
+export function accessCandidates(net: Network, p: RoutePoint) {
   const near = net.nearbyStops(p.lat, p.lon, ACCESS_RADIUS_M);
   const list = near.length ? near : net.nearbyStops(p.lat, p.lon, ACCESS_RADIUS_FALLBACK_M).slice(0, 10);
   // Duraktan hiçbir desen geçmiyorsa erişim noktası olarak işe yaramaz
   return list.filter(({ stop }) => net.stopPatterns[stop].length > 0);
 }
 
+const estimatedWalks = (net: Network, p: RoutePoint): StopWalk[] =>
+  accessCandidates(net, p).map(({ stop, meters }) => ({ stop, walkMeters: meters * WALK_FACTOR }));
+
 export function planJourneys(query: RouteQuery, net: Network = getNetwork()): Journey[] {
   const departuresOf = searchDepartures(net, query);
   const S = net.stops.length;
   const { from, to, time } = query;
 
-  const access = accessStops(net, from);
-  const egress = new Map(accessStops(net, to).map((e) => [e.stop, e.meters]));
+  const access = query.access ?? estimatedWalks(net, from);
+  const egress = new Map((query.egress ?? estimatedWalks(net, to)).map((e) => [e.stop, e.walkMeters]));
 
   // tau[k][s]: en fazla k araçla s'ye en erken varış; best[s]: tüm turlardaki en iyisi
   const tau: Float64Array[] = [new Float64Array(S).fill(Infinity)];
@@ -117,8 +138,8 @@ export function planJourneys(query: RouteQuery, net: Network = getNetwork()): Jo
   const best = new Float64Array(S).fill(Infinity);
   let marked = new Set<number>();
 
-  for (const { stop, meters } of access) {
-    const t = time + walkSeconds(meters);
+  for (const { stop, walkMeters: meters } of access) {
+    const t = time + meters / WALK_SPEED;
     if (t < tau[0][stop]) {
       tau[0][stop] = best[stop] = t;
       labels[0][stop] = { type: "access", meters };
@@ -193,7 +214,7 @@ export function planJourneys(query: RouteQuery, net: Network = getNetwork()): Jo
     // Hedefe varış (son durak + yürüme); hedef budaması için en iyiyi güncelle
     for (const [stop, meters] of egress) {
       if (labels[k][stop]?.type === "access") continue; // hiç araca binmemiş
-      const arrival = tau[k][stop] + walkSeconds(meters);
+      const arrival = tau[k][stop] + meters / WALK_SPEED;
       if (arrival < targetBest) {
         targetBest = arrival;
         roundTarget[k] = { arrival, stop };
@@ -243,11 +264,11 @@ function buildJourney(
   let k = rounds;
   let stop = lastStop;
   // Yürüme mesafeleri kuş uçuşu × sokak katsayısı; saatleri withTimes doldurur
-  const walk = (a: RoutePoint, b: RoutePoint, straight: number): JourneyLeg => ({
+  const walk = (a: RoutePoint, b: RoutePoint, walkMeters: number): JourneyLeg => ({
     type: "walk",
     from: a,
     to: b,
-    meters: Math.round(straight * WALK_FACTOR),
+    meters: Math.round(walkMeters),
     departure: 0,
     arrival: 0,
   });
@@ -262,7 +283,7 @@ function buildJourney(
       break;
     }
     if (label.type === "walk") {
-      reversed.push(walk(point(label.from), point(stop), label.meters));
+      reversed.push(walk(point(label.from), point(stop), label.meters * WALK_FACTOR));
       stop = label.from;
       continue;
     }
@@ -297,7 +318,7 @@ function buildJourney(
  *  - diğerleri (aktarma, son durak → varış) önceki bacağın bitişinden ileriye hesaplanır.
  * Böylece "çıkış saati" = kullanıcının evden çıkması gereken en geç saat olur.
  */
-function withTimes(legs: JourneyLeg[]): Journey {
+export function withTimes(legs: JourneyLeg[]): Journey {
   const firstRide = legs.findIndex((l) => l.type === "ride");
   for (let i = firstRide - 1; i >= 0; i--) {
     const leg = legs[i];
@@ -330,7 +351,7 @@ function withTimes(legs: JourneyLeg[]): Journey {
  * (daha çok aktarmalı seçenek sadece daha erken varıyorsa vardır). Sıralama
  * "varış + aktarma başına ceza" ile yapılır; en hızlıdan çok geç kalanlar elenir.
  */
-function rankJourneys(journeys: Journey[]): Journey[] {
+export function rankJourneys(journeys: Journey[]): Journey[] {
   if (journeys.length === 0) return [];
   const cost = (j: Journey) => j.arrival + j.transfers * TRANSFER_PENALTY_S;
   const fastest = Math.min(...journeys.map((j) => j.arrival));

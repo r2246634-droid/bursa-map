@@ -8,7 +8,7 @@ import type { RouteErrorResponse, RouteResponse } from "@/lib/routing/types";
 async function call(params: Record<string, string>) {
   const url = new URL("http://localhost/api/route");
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
-  const res = GET(new NextRequest(url));
+  const res = await GET(new NextRequest(url));
   return { status: res.status, body: (await res.json()) as RouteResponse & RouteErrorResponse };
 }
 

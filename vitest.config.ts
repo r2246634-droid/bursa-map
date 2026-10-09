@@ -19,6 +19,10 @@ export default defineConfig({
     include: ["tests/**/*.test.ts"],
     // Türkçe sıralama/büyük-küçük harf (Intl, toLocaleLowerCase("tr-TR")) ve saat dilimi
     // testleri her makinede aynı sonucu versin
-    env: { TZ: "UTC" },
+    env: {
+      TZ: "UTC",
+      // Testler dış yürüme yönlendirme servisini (OSRM) çağırmasın; o modül ayrıca taklitle test edilir
+      WALK_ROUTER_URL: "off",
+    },
   },
 });

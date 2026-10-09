@@ -65,7 +65,14 @@ export default function RouteOverlay({ from, to, journey, bottomInset, refitToke
           leg.type === "ride" ? { kind: "ride", color: rideColor(leg) } : { kind: "walk", color: "#475569" },
         geometry: {
           type: "LineString",
-          coordinates: leg.type === "ride" ? leg.path : [[leg.from.lon, leg.from.lat], [leg.to.lon, leg.to.lat]],
+          // Yürüyüş: sokak güzergâhı varsa o, yoksa (servis yanıt vermediyse) düz çizgi
+          coordinates:
+            leg.type === "ride"
+              ? leg.path
+              : (leg.path ?? [
+                  [leg.from.lon, leg.from.lat],
+                  [leg.to.lon, leg.to.lat],
+                ]),
         },
       })),
     };

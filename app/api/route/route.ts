@@ -2,7 +2,9 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { BURSA_BOUNDS } from "@/lib/map-config";
 import { HOLIDAYS_KNOWN_UNTIL, neighbourSchedules, serviceClock } from "@/lib/routing/calendar";
+import { getNetwork } from "@/lib/routing/network";
 import { planJourneys } from "@/lib/routing/raptor";
+import { refineWalkLegs, streetAccess } from "@/lib/routing/refine";
 import type { RouteErrorResponse, RoutePoint, RouteResponse } from "@/lib/routing/types";
 
 /**
@@ -30,7 +32,7 @@ function error(message: string, status: number) {
   return NextResponse.json<RouteErrorResponse>({ error: message }, { status });
 }
 
-export function GET(request: NextRequest) {
+export async function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams;
   const from = parsePoint(params.get("from"), params.get("fromName"), "Başlangıç");
   const to = parsePoint(params.get("to"), params.get("toName"), "Varış");
@@ -44,20 +46,38 @@ export function GET(request: NextRequest) {
   const clock = serviceClock(date);
   const { previous, next } = neighbourSchedules(date);
 
+  // 1) Yakın duraklara sokaktan yürüme mesafeleri (servis yoksa null → kuş uçuşu tahmini)
+  const net = getNetwork();
+  const walkStarted = performance.now();
+  const [access, egress] = await Promise.all([
+    streetAccess(net, from),
+    streetAccess(net, to, { reverse: true }),
+  ]);
+
+  // 2) RAPTOR
   const started = performance.now();
-  const journeys = planJourneys({
+  const planned = planJourneys({
     from,
     to,
     day: clock.schedule,
     time: clock.seconds,
     previousDay: previous,
     nextDay: next,
+    access: access ?? undefined,
+    egress: egress ?? undefined,
   });
   const elapsedMs = Math.round(performance.now() - started);
+
+  // 3) Yürüme bacaklarına sokak güzergâhı, saatleri yeniden hesapla
+  const { journeys, allStreetRouted } = await refineWalkLegs(planned, clock.seconds);
+  const walkMs = Math.round(performance.now() - walkStarted - elapsedMs);
 
   const notes = [
     "Varış saatleri ilk duraktan kalkış saatine göre tahmin edilmiştir (otobüs 20, tramvay 16, metro 35 km/s ortalama).",
   ];
+  if (!access || !egress || !allStreetRouted) {
+    notes.push("Yürüme mesafelerinin bir kısmı sokak verisine ulaşılamadığı için kuş uçuşu tahmindir.");
+  }
   if (clock.holiday) notes.push(`${clock.holiday}: resmi tatil olduğu için Pazar tarifesi uygulandı.`);
   if (Number(clock.date.slice(0, 4)) > HOLIDAYS_KNOWN_UNTIL) {
     notes.push("Bu yılın dini bayram tarihleri takvimde tanımlı değil; bayram günlerinde saatler farklı olabilir.");
@@ -68,6 +88,6 @@ export function GET(request: NextRequest) {
 
   return NextResponse.json<RouteResponse>(
     { journeys, serviceDay: clock.schedule, queryTime: clock.seconds, notes },
-    { headers: { "Cache-Control": "no-store", "Server-Timing": `raptor;dur=${elapsedMs}` } },
+    { headers: { "Cache-Control": "no-store", "Server-Timing": `raptor;dur=${elapsedMs}, walk;dur=${walkMs}` } },
   );
 }
