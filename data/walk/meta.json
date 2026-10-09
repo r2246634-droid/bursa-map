@@ -1,0 +1,12 @@
+{
+  "bbox": {
+    "south": 40.06,
+    "west": 28.7,
+    "north": 40.49,
+    "east": 29.54
+  },
+  "nodes": 325776,
+  "edges": 364497,
+  "builtAt": "2026-10-09T10:09:00.093Z",
+  "attribution": "© OpenStreetMap katkıda bulunanlar (ODbL)"
+}

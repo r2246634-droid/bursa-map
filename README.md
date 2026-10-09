@@ -25,6 +25,7 @@ npm run dev          # http://localhost:3000
 | `npm test` | Birim testleri (Vitest) — `npm run test:watch` izleme modu |
 | `npm run lint` · `npm run typecheck` | ESLint · TypeScript kontrolü |
 | `npm run data` | OSM verisini yeniler (öne çıkan noktalar, metro/tramvay, tramvay boşlukları) |
+| `npm run data:walk` | Yaya yolu ağını OSM'den yeniden üretir (`data/walk/`, birkaç dakika) |
 | `npm run data:shapes` | Hat güzergâhlarını hat başına dosyalara böler (dev/build öncesi otomatik) |
 
 ## Proje yapısı
@@ -66,6 +67,13 @@ RAPTOR algoritması (lib/routing/raptor.ts). Ara durak saatleri ilk duraktan kal
 tahmin edilir (otobüs 20, tramvay 16, metro 35 km/s). Resmi tatillerde Pazar tarifesi uygulanır;
 dini bayram tarihleri `lib/routing/calendar.ts` içinde **2027 sonuna kadar** tanımlıdır — her yıl
 eklenmelidir.
+
+Yürüme mesafeleri ve çizgileri kendi yaya yolu ağımız üzerinden hesaplanır
+(`lib/routing/walk-graph.ts`): OSM'nin yürünebilir yolları (cadde, sokak, kaldırım, patika,
+merdiven; otoyollar hariç) `scripts/fetch-walk-graph.mjs` ile sıkıştırılmış bir grafa
+(`data/walk/bursa-walk.bin.gz`, ~5 MB) çevrilir; sunucu bunu bellekte tutar ve Dijkstra/A* ile arar
+(arama başına birkaç ms, dış servis yok). Ağ, durakların ~%98'ini kapsayan alanı içerir; bunun
+dışındaki (uzak ilçe) yürüyüşler kuş uçuşu × 1,25 tahmin edilir ve yanıtta not olarak belirtilir.
 
 ## Yayına alma (Vercel)
 

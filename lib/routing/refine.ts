@@ -2,15 +2,14 @@
  * Yol tarifini sokak ağıyla iyileştirme — SADECE SUNUCUDA (app/api/route).
  *
  *  1. Aramadan önce: başlangıç/varış noktasına yakın durakların GERÇEK yürüme mesafeleri
- *     (OSRM table, nokta başına tek istek). RAPTOR durak seçimini bunlarla yapar; kuş uçuşu
- *     yakın ama arada otoyol/dere olan durak öne çıkmaz.
- *  2. Aramadan sonra: bulunan seçeneklerin her yürüme bacağına sokak güzergâhı (OSRM route)
- *     eklenir, mesafe ve saatler yeniden hesaplanır. Gerçek yürüyüşle aktarmaya yetişilemeyen
- *     seçenekler elenir.
- * Servis yanıt vermezse kuş uçuşu tahmin kullanılır (çağıran tarafa bildirilir).
+ *     (yaya ağında tek Dijkstra). RAPTOR durak seçimini bunlarla yapar; kuş uçuşu yakın ama
+ *     arada otoyol/dere olan durak öne çıkmaz.
+ *  2. Aramadan sonra: bulunan seçeneklerin her yürüme bacağına sokak güzergâhı eklenir, mesafe
+ *     ve saatler yeniden hesaplanır. Gerçek yürüyüşle aktarmaya yetişilemeyen seçenekler elenir.
+ * Yaya ağı yoksa ya da nokta ağın dışındaysa kuş uçuşu tahmin kullanılır (çağırana bildirilir).
  */
 import { WALK_FACTOR, WALK_SPEED, type Network } from "./network";
-import { accessCandidates, rankJourneys, withTimes, type StopWalk } from "./raptor";
+import { accessCandidates, planJourneys, rankJourneys, withTimes, type RouteQuery, type StopWalk } from "./raptor";
 import type { Journey, RoutePoint, WalkLeg } from "./types";
 import { walkDistances, walkPath } from "./walking";
 
@@ -22,20 +21,20 @@ const MIN_ROUTED_WALK_M = 25;
 const CONNECTION_TOLERANCE_S = 30;
 
 /**
- * Bir noktanın yakınındaki duraklara (reverse: duraklardan noktaya) sokak üzerinden yürüme
- * mesafeleri. Servis yanıt vermezse null → RAPTOR kuş uçuşu tahmini kullanır.
+ * Bir noktanın yakınındaki duraklara sokak üzerinden yürüme mesafeleri (yaya ağı yönsüz:
+ * varış yürüyüşü için de aynı). Ağ yoksa null → RAPTOR kuş uçuşu tahmini kullanır.
  */
-export async function streetAccess(net: Network, point: RoutePoint, { reverse = false } = {}): Promise<StopWalk[] | null> {
+export function streetAccess(net: Network, point: RoutePoint): StopWalk[] | null {
   const candidates = accessCandidates(net, point);
   if (candidates.length === 0) return null;
-  const distances = await walkDistances(
+  const distances = walkDistances(
     point,
     candidates.map(({ stop }) => net.stops[stop]),
-    { reverse },
   );
   if (!distances) return null;
 
   const walks = candidates
+    // null: durak yaya ağının dışında → tahmin; Infinity: sokaktan ulaşılamıyor → elenir
     .map(({ stop, meters }, i) => ({ stop, walkMeters: distances[i] ?? meters * WALK_FACTOR }))
     .filter((w) => w.walkMeters <= MAX_ACCESS_WALK_M);
   return walks.length ? walks : null;
@@ -57,9 +56,16 @@ export interface RefineResult {
 }
 
 /** Seçeneklerin yürüme bacaklarına sokak güzergâhı ekler, saatleri yeniden hesaplar ve sıralar */
-export async function refineWalkLegs(journeys: Journey[], queryTime: number): Promise<RefineResult> {
+export function refineWalkLegs(journeys: Journey[], queryTime: number): RefineResult {
   const walks = journeys.flatMap((j) => j.legs.filter((l): l is WalkLeg => l.type === "walk" && l.meters >= MIN_ROUTED_WALK_M));
-  const paths = await Promise.all(walks.map((leg) => walkPath(leg.from, leg.to)));
+  // Aynı yürüyüş (ör. iki seçenekte aynı son durak → varış) bir kez aranır
+  const known = new Map<string, ReturnType<typeof walkPath>>();
+  const keyOf = (leg: WalkLeg) => `${leg.from.lat},${leg.from.lon};${leg.to.lat},${leg.to.lon}`;
+  const paths = walks.map((leg) => {
+    const key = keyOf(leg);
+    if (!known.has(key)) known.set(key, walkPath(leg.from, leg.to));
+    return known.get(key)!;
+  });
 
   let allStreetRouted = true;
   walks.forEach((leg, i) => {
@@ -88,3 +94,27 @@ export async function refineWalkLegs(journeys: Journey[], queryTime: number): Pr
   for (const j of refined) j.tags = [];
   return { journeys: rankJourneys(refined), allStreetRouted };
 }
+
+export interface StreetPlan extends RefineResult {
+  /** Başlangıç/varış durak mesafeleri yaya ağından alınabildi mi */
+  streetAccess: boolean;
+}
+
+/**
+ * Sokak ağıyla tam akış:
+ *  1. yakın duraklara gerçek yürüme mesafeleri (nokta ağın dışındaysa tahmin),
+ *  2. RAPTOR,
+ *  3. yürüme bacaklarına sokak güzergâhı ve yeni saatler.
+ */
+export function planWithStreetWalking(net: Network, query: RouteQuery): StreetPlan {
+  const access = streetAccess(net, query.from);
+  const egress = streetAccess(net, query.to);
+  const journeys = planJourneys(
+    { ...query, access: access ?? estimatedWalks(net, query.from), egress: egress ?? estimatedWalks(net, query.to) },
+    net,
+  );
+  return { ...refineWalkLegs(journeys, query.time), streetAccess: access !== null && egress !== null };
+}
+
+const estimatedWalks = (net: Network, p: RoutePoint): StopWalk[] =>
+  accessCandidates(net, p).map(({ stop, meters }) => ({ stop, walkMeters: meters * WALK_FACTOR }));

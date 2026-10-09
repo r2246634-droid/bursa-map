@@ -3,8 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { BURSA_BOUNDS } from "@/lib/map-config";
 import { HOLIDAYS_KNOWN_UNTIL, neighbourSchedules, serviceClock } from "@/lib/routing/calendar";
 import { getNetwork } from "@/lib/routing/network";
-import { planJourneys } from "@/lib/routing/raptor";
-import { refineWalkLegs, streetAccess } from "@/lib/routing/refine";
+import { planWithStreetWalking } from "@/lib/routing/refine";
 import type { RouteErrorResponse, RoutePoint, RouteResponse } from "@/lib/routing/types";
 
 /**
@@ -12,10 +11,12 @@ import type { RouteErrorResponse, RoutePoint, RouteResponse } from "@/lib/routin
  *
  *   GET /api/route?from=40.2123,29.0145&to=40.2659,29.0532[&fromName=…&toName=…][&at=2026-10-08T08:30:00+03:00]
  *
- * `at` verilmezse şimdiki zaman (Türkiye saati) kullanılır. Resmi tatillerde Pazar tarifesi uygulanır. Ağ (graf) ilk istekte kurulur
- * ve sunucu süreci boyunca bellekte kalır; sonraki istekler sadece RAPTOR aramasıdır.
+ * `at` verilmezse şimdiki zaman (Türkiye saati) kullanılır. Resmi tatillerde Pazar tarifesi uygulanır. Toplu taşıma ağı ve yaya yolu
+ * ağı ilk istekte kurulur ve sunucu süreci boyunca bellekte kalır.
  */
 export const runtime = "nodejs";
+/** Frankfurt: Türkiye'deki kullanıcılara en yakın bölge */
+export const preferredRegion = "fra1";
 export const dynamic = "force-dynamic";
 
 const [west, south, east, north] = BURSA_BOUNDS;
@@ -32,7 +33,7 @@ function error(message: string, status: number) {
   return NextResponse.json<RouteErrorResponse>({ error: message }, { status });
 }
 
-export async function GET(request: NextRequest) {
+export function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams;
   const from = parsePoint(params.get("from"), params.get("fromName"), "Başlangıç");
   const to = parsePoint(params.get("to"), params.get("toName"), "Varış");
@@ -46,37 +47,23 @@ export async function GET(request: NextRequest) {
   const clock = serviceClock(date);
   const { previous, next } = neighbourSchedules(date);
 
-  // 1) Yakın duraklara sokaktan yürüme mesafeleri (servis yoksa null → kuş uçuşu tahmini)
-  const net = getNetwork();
-  const walkStarted = performance.now();
-  const [access, egress] = await Promise.all([
-    streetAccess(net, from),
-    streetAccess(net, to, { reverse: true }),
-  ]);
-
-  // 2) RAPTOR
+  // Sokak ağıyla yürüme + RAPTOR (bkz. lib/routing/refine.ts → planWithStreetWalking)
   const started = performance.now();
-  const planned = planJourneys({
+  const { journeys, allStreetRouted, streetAccess } = planWithStreetWalking(getNetwork(), {
     from,
     to,
     day: clock.schedule,
     time: clock.seconds,
     previousDay: previous,
     nextDay: next,
-    access: access ?? undefined,
-    egress: egress ?? undefined,
   });
   const elapsedMs = Math.round(performance.now() - started);
-
-  // 3) Yürüme bacaklarına sokak güzergâhı, saatleri yeniden hesapla
-  const { journeys, allStreetRouted } = await refineWalkLegs(planned, clock.seconds);
-  const walkMs = Math.round(performance.now() - walkStarted - elapsedMs);
 
   const notes = [
     "Varış saatleri ilk duraktan kalkış saatine göre tahmin edilmiştir (otobüs 20, tramvay 16, metro 35 km/s ortalama).",
   ];
-  if (!access || !egress || !allStreetRouted) {
-    notes.push("Yürüme mesafelerinin bir kısmı sokak verisine ulaşılamadığı için kuş uçuşu tahmindir.");
+  if (!streetAccess || !allStreetRouted) {
+    notes.push("Yürüme mesafelerinin bir kısmı yaya yolu ağının dışında kaldığı için kuş uçuşu tahmindir.");
   }
   if (clock.holiday) notes.push(`${clock.holiday}: resmi tatil olduğu için Pazar tarifesi uygulandı.`);
   if (Number(clock.date.slice(0, 4)) > HOLIDAYS_KNOWN_UNTIL) {
@@ -88,6 +75,6 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json<RouteResponse>(
     { journeys, serviceDay: clock.schedule, queryTime: clock.seconds, notes },
-    { headers: { "Cache-Control": "no-store", "Server-Timing": `raptor;dur=${elapsedMs}, walk;dur=${walkMs}` } },
+    { headers: { "Cache-Control": "no-store", "Server-Timing": `plan;dur=${elapsedMs}` } },
   );
 }

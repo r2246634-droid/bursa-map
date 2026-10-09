@@ -21,8 +21,8 @@ export default defineConfig({
     // testleri her makinede aynı sonucu versin
     env: {
       TZ: "UTC",
-      // Testler dış yürüme yönlendirme servisini (OSRM) çağırmasın; o modül ayrıca taklitle test edilir
-      WALK_ROUTER_URL: "off",
+      // Testler gerçek yaya ağını yüklemesin; yürüme testleri küçük sentetik graf kurar
+      WALK_GRAPH: "off",
     },
   },
 });

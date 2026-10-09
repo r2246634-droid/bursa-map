@@ -46,6 +46,10 @@ const withPWA = withPWAInit({
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // Yaya yolu ağı sunucuda fs ile okunur; dosya izleyici bunu göremez, Vercel paketine elle eklenir
+  outputFileTracingIncludes: {
+    "/api/route": ["./data/walk/bursa-walk.bin.gz"],
+  },
 };
 
 // PWA eklentisi webpack tabanlı; geliştirmede Turbopack'i engellemesin diye sadece production'da sarmala
