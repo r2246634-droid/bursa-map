@@ -14,11 +14,17 @@ export interface RouteEndpoints {
   to: Place | null;
 }
 
+/** Haritanın üstündeki panelin kapladığı alan (px): dikeyde alttan, yatayda soldan */
+export interface PanelInset {
+  bottom: number;
+  left: number;
+}
+
 interface RouteOverlayProps extends RouteEndpoints {
   /** Seçili yol tarifi seçeneği; yoksa (hesaplanıyor/bulunamadı) kuş uçuşu çizgi gösterilir */
   journey: Journey | null;
-  /** Haritanın altını kaplayan panelin yüksekliği (px); kamera bu alanı boş bırakır */
-  bottomInset: number;
+  /** Yol tarifi panelinin kapladığı alan; kamera bu alanı boş bırakır */
+  inset: PanelInset;
   /**
    * Her artışta rota, panelin yeni yüksekliğine göre yeniden ekrana sığdırılır
    * (panel tutamaçla küçültülüp büyütüldüğünde; kullanıcı haritayı kendisi kaydırırken değil).
@@ -36,12 +42,12 @@ type LegProps = { kind: "walk" | "ride"; color: string };
  * Yol tarifi: A/B işaretleri ve seçili seçeneğin bacakları — araç bacakları hat renginde,
  * yürüyüşler noktalı gri. Seçenek gelmeden önce kuş uçuşu kesik çizgi gösterilir.
  */
-export default function RouteOverlay({ from, to, journey, bottomInset, refitToken }: RouteOverlayProps) {
+export default function RouteOverlay({ from, to, journey, inset, refitToken }: RouteOverlayProps) {
   const { current: map } = useMap();
 
   // Panel boyu bilerek kamera efektinin bağımlılığı değil: öneri listesi açılıp panel uzayınca
   // kamera kendiliğinden kaymasın, sadece uç noktalar/seçenek değişince odaklansın.
-  const bottomInsetRef = useRef(bottomInset);
+  const insetRef = useRef(inset);
 
   const legs = useMemo<FeatureCollection<LineString, LegProps> | null>(() => {
     if (from && to && !journey) {
@@ -83,9 +89,11 @@ export default function RouteOverlay({ from, to, journey, bottomInset, refitToke
     if (!map) return;
     // Panel ekranın çoğunu kaplayabilir (seçenek listesi uzayınca). Alt boşluk haritanın tamamını
     // yerse MapLibre fitBounds'u sessizce atlar; rota için en az ~120 px yükseklik bırakılır.
-    const mapHeight = map.getContainer().clientHeight;
-    const bottom = Math.min(bottomInsetRef.current + 24, Math.max(0, mapHeight - TOP_INSET - 120));
-    const padding = { top: TOP_INSET, bottom, left: SIDE_INSET, right: SIDE_INSET };
+    // Yatayda panel solda: aynı kural genişlik için de geçerli (rotaya en az ~120 px kalsın).
+    const { clientHeight: mapHeight, clientWidth: mapWidth } = map.getContainer();
+    const bottom = Math.min(insetRef.current.bottom + 24, Math.max(0, mapHeight - TOP_INSET - 120));
+    const left = Math.min(insetRef.current.left + SIDE_INSET, Math.max(0, mapWidth - SIDE_INSET - 120));
+    const padding = { top: TOP_INSET, bottom, left, right: SIDE_INSET };
     const coords = legs?.features.flatMap((f) => f.geometry.coordinates) ?? [];
     if (coords.length >= 2) {
       const lons = coords.map((c) => c[0]);
@@ -116,7 +124,7 @@ export default function RouteOverlay({ from, to, journey, bottomInset, refitToke
     focusRef.current();
   }, [map, from, to, legs]);
 
-  // Tutamaçla küçült/büyüt: panelin yeni yüksekliği ölçülüp bottomInset gelince yeniden sığdır.
+  // Tutamaçla küçült/büyüt: panelin yeni boyu ölçülüp inset gelince yeniden sığdır.
   // Yükseklik değişmezse (ölçüm gelmezse) kısa bir süre sonra yine de sığdır.
   const pendingRefit = useRef(false);
   useEffect(() => {
@@ -131,12 +139,12 @@ export default function RouteOverlay({ from, to, journey, bottomInset, refitToke
   }, [refitToken]);
 
   useEffect(() => {
-    bottomInsetRef.current = bottomInset;
+    insetRef.current = inset;
     if (pendingRefit.current) {
       pendingRefit.current = false;
       focusRef.current();
     }
-  }, [bottomInset]);
+  }, [inset]);
 
   return (
     <>

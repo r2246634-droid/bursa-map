@@ -7,7 +7,7 @@ const withPWA = withPWAInit({
   cacheOnFrontEndNav: true,
   aggressiveFrontEndNavCaching: true,
   reloadOnOnline: true,
-  // public/data altındaki hat güzergâhları (~400 dosya, ~7 MB) kurulumda önceden indirilmesin;
+  // public/data altındaki hat güzergâhları (~400 dosya, ~12 MB) kurulumda önceden indirilmesin;
   // sadece kullanıcının açtığı hatlar aşağıdaki runtime önbelleğine girer
   publicExcludes: ["!noprecache/**/*", "!data/**/*"],
   workboxOptions: {

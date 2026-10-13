@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import BursaMap from "@/components/map/Map";
-import type { RouteEndpoints } from "@/components/map/RouteOverlay";
+import type { PanelInset, RouteEndpoints } from "@/components/map/RouteOverlay";
 import BottomNav, { type TabId } from "@/components/ui/BottomNav";
 import LayerControl, { LayerToggleButton } from "@/components/ui/LayerControl";
 import LinesPanel from "@/components/ui/LinesPanel";
@@ -20,11 +20,12 @@ import { useHydrateFavorites } from "@/lib/favorites";
 import { getCurrentPlace, locationErrorMessage, locationPermissionGranted } from "@/lib/geolocation";
 import { journeysUrl, useJourneys } from "@/lib/routing/client";
 import { droppedPin } from "@/lib/map-features";
-import { ensureBusPlacesLoaded, findPlaceById, usePlaceIndex } from "@/lib/place-search";
+import { ensureBusPlacesLoaded, findPlaceById, nearViewFirst, usePlaceIndex } from "@/lib/place-search";
 
 const CARD_LIMIT = 20;
 const NOTICE_MS = 4000;
 const EMPTY_ROUTE: RouteEndpoints = { from: null, to: null };
+const NO_INSET: PanelInset = { bottom: 0, left: 0 };
 
 /** Uygulama durumunu (sekme, katmanlar, arama, seçim, rota) tutan ve UI parçalarını birleştiren kabuk. */
 export default function MapShell() {
@@ -34,7 +35,13 @@ export default function MapShell() {
   const [query, setQuery] = useState("");
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
   const [route, setRoute] = useState<RouteEndpoints>(EMPTY_ROUTE);
-  const [routePanelHeight, setRoutePanelHeight] = useState(0);
+  const [routePanelInset, setRoutePanelInset] = useState<PanelInset>(NO_INSET);
+  // Panel her ölçümde yeni nesne bildirir; değer aynıysa durumu (ve haritayı) değiştirme
+  const handleRouteInsetChange = useCallback(
+    (next: PanelInset) =>
+      setRoutePanelInset((prev) => (prev.bottom === next.bottom && prev.left === next.left ? prev : next)),
+    [],
+  );
   /** Yol tarifi kalkış saati (datetime-local değeri); null = şimdi */
   const [departAt, setDepartAt] = useState<string | null>(null);
   const journeys = useJourneys(route.from, route.to, departAt);
@@ -139,7 +146,7 @@ export default function MapShell() {
   const cardPlaces = useMemo(
     () =>
       query.trim()
-        ? placeIndex.search(query, CARD_LIMIT)
+        ? placeIndex.search(query, CARD_LIMIT, undefined, nearViewFirst)
         : PLACES.filter((p) => p.kind === "poi" && visibleLayers.has(p.layer)),
     [query, visibleLayers, placeIndex],
   );
@@ -225,7 +232,7 @@ export default function MapShell() {
             routeRefitToken={routeRefitToken}
             // Kullanıcı haritayı kaydırmaya başlayınca panel küçülür (kamera zıplamaz)
             onUserDrag={() => routeActive && setRouteCollapsed(true)}
-            bottomInset={routeMode ? routePanelHeight : 0}
+            routeInset={routeMode ? routePanelInset : NO_INSET}
             onPlaceClick={handleMapPlaceClick}
             onEmptyClick={handleEmptyMapClick}
             onNotice={showNotice}
@@ -269,7 +276,7 @@ export default function MapShell() {
           to={route.to}
           onChange={handleRouteChange}
           onClose={closePanel}
-          onHeightChange={setRoutePanelHeight}
+          onInsetChange={handleRouteInsetChange}
           journeys={journeys}
           departAt={departAt}
           onDepartAtChange={setDepartAt}

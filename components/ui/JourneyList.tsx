@@ -1,8 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import { Footprints, Info } from "lucide-react";
 
+import { formatDistance } from "@/lib/geo";
 import { formatDuration, rideColor, rideLabel, type JourneysState } from "@/lib/routing/client";
+import { formatFare } from "@/lib/routing/fares";
 import { formatClock } from "@/lib/routing/time";
 import type { Journey, JourneyLeg } from "@/lib/routing/types";
 
@@ -12,8 +15,25 @@ interface JourneyListProps {
   onSelect: (index: number) => void;
 }
 
+/**
+ * Seçenekleri sıralama ölçütleri. Kimine göre süre, kimine göre ücret ya da aktarma önemli:
+ * sunucu tüm makul seçenekleri döndürür, kullanıcı istediği ölçüte göre dizer.
+ * Eşitlikte erken varan önce gelir.
+ */
+const SORTS = [
+  { id: "recommended", label: "Önerilen", key: null },
+  { id: "fastest", label: "En hızlı", key: (j: Journey) => j.arrival },
+  { id: "cheapest", label: "En ucuz", key: (j: Journey) => j.fare },
+  { id: "transfers", label: "En az aktarma", key: (j: Journey) => j.transfers },
+  { id: "walking", label: "En az yürüme", key: (j: Journey) => j.walkMeters },
+  { id: "shortest", label: "En kısa mesafe", key: (j: Journey) => j.distanceMeters },
+] as const;
+type SortId = (typeof SORTS)[number]["id"];
+
 /** Yol tarifi seçenekleri ve seçili seçeneğin adım adım anlatımı */
 export default function JourneyList({ state, selectedIndex, onSelect }: JourneyListProps) {
+  const [sortId, setSortId] = useState<SortId>("recommended");
+
   if (state.status === "idle") return null;
   if (state.status === "loading") {
     return (
@@ -32,13 +52,41 @@ export default function JourneyList({ state, selectedIndex, onSelect }: JourneyL
     return <p className="px-1 py-3 text-sm text-slate-500">{notes.at(-1)}</p>;
   }
   const selected = journeys[Math.min(selectedIndex, journeys.length - 1)];
+  // Seçim sunucunun sırasındaki indeksle tutulur; sıralama sadece görünümü değiştirir
+  const sortKey = SORTS.find((s) => s.id === sortId)?.key;
+  const order = journeys.map((journey, index) => ({ journey, index }));
+  if (sortKey) order.sort((a, b) => sortKey(a.journey) - sortKey(b.journey) || a.journey.arrival - b.journey.arrival);
 
   return (
     <div className="space-y-2" aria-live="polite">
+      {journeys.length > 1 && (
+        <div
+          role="group"
+          aria-label="Seçenekleri sırala"
+          className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 [scrollbar-width:none]"
+        >
+          {SORTS.map((sort) => (
+            <button
+              key={sort.id}
+              type="button"
+              onClick={() => setSortId(sort.id)}
+              aria-pressed={sortId === sort.id}
+              className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                sortId === sort.id
+                  ? "border-blue-600 bg-blue-600 text-white"
+                  : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+              }`}
+            >
+              {sort.label}
+            </button>
+          ))}
+        </div>
+      )}
+      <p className="px-1 text-xs text-slate-500">{journeys.length} seçenek</p>
       <ul className="space-y-2" aria-label="Rota seçenekleri">
-        {journeys.map((journey, i) => (
-          <li key={i}>
-            <JourneyOption journey={journey} selected={journey === selected} onSelect={() => onSelect(i)} />
+        {order.map(({ journey, index }) => (
+          <li key={index}>
+            <JourneyOption journey={journey} selected={journey === selected} onSelect={() => onSelect(index)} />
           </li>
         ))}
       </ul>
@@ -88,7 +136,9 @@ function JourneyOption({ journey, selected, onSelect }: { journey: Journey; sele
             {tag}
           </span>
         ))}
-        <span>{journey.transfers === 0 ? "Aktarmasız" : `${journey.transfers} aktarma`}</span>
+        <span className="font-medium text-slate-700">{formatFare(journey.fare)}</span>
+        <span>· {formatDistance(journey.distanceMeters)}</span>
+        <span>· {journey.transfers === 0 ? "Aktarmasız" : `${journey.transfers} aktarma`}</span>
         <span>· {journey.walkMeters} m yürüme</span>
       </div>
     </button>

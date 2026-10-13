@@ -8,8 +8,17 @@
  *     ve saatler yeniden hesaplanır. Gerçek yürüyüşle aktarmaya yetişilemeyen seçenekler elenir.
  * Yaya ağı yoksa ya da nokta ağın dışındaysa kuş uçuşu tahmin kullanılır (çağırana bildirilir).
  */
-import { WALK_FACTOR, WALK_SPEED, type Network } from "./network";
-import { accessCandidates, planJourneys, rankJourneys, withTimes, type RouteQuery, type StopWalk } from "./raptor";
+import { WALK_FACTOR, type Network } from "./network";
+import {
+  accessCandidates,
+  estimatedWalks,
+  findAlternatives,
+  rankJourneys,
+  walkOnlyJourney,
+  withTimes,
+  type RouteQuery,
+  type StopWalk,
+} from "./raptor";
 import type { Journey, RoutePoint, WalkLeg } from "./types";
 import { walkDistances, walkPath } from "./walking";
 
@@ -84,14 +93,11 @@ export function refineWalkLegs(journeys: Journey[], queryTime: number): RefineRe
       const hasRide = journey.legs.some((l) => l.type === "ride");
       if (hasRide) return withTimes(journey.legs);
       // Sadece yürüyüş: çıkış sabit, varış yeni mesafeye göre
-      const [walk] = journey.legs as WalkLeg[];
-      walk.arrival = walk.departure + walk.meters / WALK_SPEED;
-      return { ...journey, arrival: walk.arrival, durationMin: Math.round((walk.arrival - walk.departure) / 60), walkMeters: walk.meters, tags: [] };
+      return walkOnlyJourney(journey.legs[0] as WalkLeg);
     })
     .filter((j) => isFeasible(j, queryTime));
 
-  // Etiketler (en erken varış / en az aktarma) yeni saatlere göre yeniden verilir
-  for (const j of refined) j.tags = [];
+  // Sıralama ve etiketler (en hızlı, en az yürüme…) yeni saat ve mesafelere göre
   return { journeys: rankJourneys(refined), allStreetRouted };
 }
 
@@ -109,12 +115,10 @@ export interface StreetPlan extends RefineResult {
 export function planWithStreetWalking(net: Network, query: RouteQuery): StreetPlan {
   const access = streetAccess(net, query.from);
   const egress = streetAccess(net, query.to);
-  const journeys = planJourneys(
+  // Sıralama sokak güzergâhları eklendikten sonra (refineWalkLegs → rankJourneys)
+  const journeys = findAlternatives(
     { ...query, access: access ?? estimatedWalks(net, query.from), egress: egress ?? estimatedWalks(net, query.to) },
     net,
   );
   return { ...refineWalkLegs(journeys, query.time), streetAccess: access !== null && egress !== null };
 }
-
-const estimatedWalks = (net: Network, p: RoutePoint): StopWalk[] =>
-  accessCandidates(net, p).map(({ stop, meters }) => ({ stop, walkMeters: meters * WALK_FACTOR }));

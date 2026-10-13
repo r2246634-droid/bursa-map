@@ -68,16 +68,13 @@ export function useJourneys(from: Place | null, to: Place | null, departAt: stri
 
 /* ---- Görünüm yardımcıları ---- */
 
-/** BURULAŞ metro kodları (M1/M2) uygulamadaki metro hatlarına (B1/B2) karşılık gelir */
-const RAIL_ALIAS: Record<string, string> = { M1: "B1", M2: "B2" };
-
 export function rideColor(leg: Pick<RideLeg, "kind" | "line">): string {
   if (leg.kind === "bus") return BUS_LINE_COLOR;
-  return LINE_COLORS[RAIL_ALIAS[leg.line] ?? leg.line] ?? BUS_LINE_COLOR;
+  return LINE_COLORS[leg.line] ?? BUS_LINE_COLOR;
 }
 
-/** Ekranda gösterilecek hat adı: metro "M1" yerine haritadaki "B1" */
-export const rideLabel = (leg: Pick<RideLeg, "line">) => RAIL_ALIAS[leg.line] ?? leg.line;
+/** Ekranda gösterilecek hat adı (metro M1/M2, tramvay T1–T3, otobüs hat kodu) */
+export const rideLabel = (leg: Pick<RideLeg, "line">) => leg.line;
 
 /** 95 → "1 sa 35 dk", 12 → "12 dk" */
 export function formatDuration(minutes: number): string {

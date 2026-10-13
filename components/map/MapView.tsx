@@ -29,13 +29,14 @@ import {
   toLngLat,
 } from "@/lib/map-config";
 import { placeFromBasemapPoi } from "@/lib/map-features";
-import { findPlaceById } from "@/lib/place-search";
+import { findPlaceById, setSearchCenter } from "@/lib/place-search";
 
+import AmenityLayer, { AMENITY_LAYER_ID } from "./AmenityLayer";
 import BusLineLayer, { BUS_LINE_STOPS_LAYER_ID } from "./BusLineLayer";
 import BusStopsLayer, { BUS_STOPS_LAYER_ID } from "./BusStopsLayer";
 
 import PoiLayer, { POI_LAYER_ID } from "./PoiLayer";
-import RouteOverlay, { type RouteEndpoints } from "./RouteOverlay";
+import RouteOverlay, { type PanelInset, type RouteEndpoints } from "./RouteOverlay";
 import TransitLayer, { stationLayerId } from "./TransitLayer";
 
 // Next.js paketlemesinde MapLibre worker'ın varsayılan adresi bozuluyor; public/ kopyasını kullan.
@@ -60,8 +61,8 @@ export interface MapViewProps {
   routeRefitToken: number;
   /** Kullanıcı haritayı eliyle sürüklemeye başladı (ör. yol tarifi panelini küçültmek için) */
   onUserDrag?: () => void;
-  /** Haritanın altını kaplayan panelin yüksekliği (px) */
-  bottomInset: number;
+  /** Yol tarifi panelinin haritadan kapladığı alan (px; dikeyde alt, yatayda sol) */
+  routeInset: PanelInset;
   /** Haritada bir istasyona, noktaya veya altlıktaki bir yere dokunuldu */
   onPlaceClick: (place: Place) => void;
   /** Haritada boş bir yere dokunuldu ([enlem, boylam]) */
@@ -108,7 +109,7 @@ export default function MapView({
   journey,
   routeRefitToken,
   onUserDrag,
-  bottomInset,
+  routeInset,
   onPlaceClick,
   onEmptyClick,
   onNotice,
@@ -137,6 +138,7 @@ export default function MapView({
     setInteractiveLayerIds([
       POI_LAYER_ID,
       ...RAIL_MODES.map(stationLayerId),
+      AMENITY_LAYER_ID,
       BUS_STOPS_LAYER_ID,
       BUS_LINE_STOPS_LAYER_ID,
       ...basemapPois,
@@ -150,8 +152,14 @@ export default function MapView({
     m.once("style.load", init);
     // Ref bağlandığında stil zaten yüklenmiş olabilir (ör. hızlı yenileme)
     if (m.getStyle()?.layers?.length) init();
+    // Altlık stili sprite'ında olmayan ikonlara ("gate", "office"…) başvuruyor: konsolu uyarıyla
+    // doldurmasın diye eksik ikonun yerine görünmez 1×1 resim konur (etiket yine çizilir)
+    m.setMissingStyleImageResolver((id) => {
+      if (!m.hasImage(id)) m.addImage(id, { width: 1, height: 1, data: new Uint8Array(4) });
+    });
     return () => {
       m.off("style.load", init);
+      m.setMissingStyleImageResolver(null);
     };
   }, [map, handleStyleReady]);
 
@@ -199,6 +207,10 @@ export default function MapView({
         onMouseLeave={() => setCursor("grab")}
         onClick={handleClick}
         onDragStart={onUserDrag}
+        onMoveEnd={(e) => {
+          const { lat, lng } = e.target.getCenter();
+          setSearchCenter([lat, lng]); // aramada aynı adlı şubeler (A101…) yakınlığa göre sıralansın
+        }}
         onPitchEnd={(e) => setPitched(e.target.getPitch() > 5)}
         attributionControl={{ compact: true }}
         style={{ width: "100%", height: "100%" }}
@@ -208,6 +220,7 @@ export default function MapView({
 
         {/* Stil yüklenmeden (labelLayerId bilinmeden) kendi katmanlarımızı eklemiyoruz */}
         {labelLayerId && <BusStopsLayer visible={visibleLayers.has("bus")} />}
+        {labelLayerId && <AmenityLayer visibleLayers={visibleLayers} />}
         {labelLayerId &&
           RAIL_MODES.map((mode) => (
             <TransitLayer
@@ -224,13 +237,15 @@ export default function MapView({
         )}
         {selectedPlace && selectedPlace.kind !== "line" && <SelectedMarker place={selectedPlace} />}
         <FlyToSelected place={selectedPlace} />
-        {route && <RouteOverlay
+        {route && (
+          <RouteOverlay
             from={route.from}
             to={route.to}
             journey={journey}
-            bottomInset={bottomInset}
+            inset={routeInset}
             refitToken={routeRefitToken}
-          />}
+          />
+        )}
       </MapGL>
 
       <button

@@ -59,11 +59,23 @@ describe("RAPTOR — temel yolculuklar", () => {
 
   it("Pareto seçenekleri: aktarmalı hızlı (A→B) ve aktarmasız yavaş (C) birlikte döner", () => {
     const journeys = planJourneys(query(0, 3, "07:55"), net);
-    const summary = journeys.map((j) => ({ rides: rides(j.legs), transfers: j.transfers, tags: j.tags }));
-    expect(summary).toEqual([
-      { rides: ["A", "B"], transfers: 1, tags: ["En erken varış"] },
-      { rides: ["C"], transfers: 0, tags: ["En az aktarma"] },
+    expect(journeys.map((j) => ({ rides: rides(j.legs), transfers: j.transfers }))).toEqual([
+      { rides: ["A", "B"], transfers: 1 },
+      { rides: ["C"], transfers: 0 },
     ]);
+    expect(journeys[0].tags).toContain("En hızlı");
+    // Tek biniş (47 TL) aktarmalıdan (47 + 21,50 TL) ucuz
+    expect(journeys[1].tags).toEqual(expect.arrayContaining(["En az aktarma", "En ucuz"]));
+    expect(journeys.map((j) => j.fare)).toEqual([68.5, 47]);
+  });
+
+  it("alternatifler: başka hatla giden, en iyi olmayan seçenek de listelenir", () => {
+    // D, C ile aynı yerden aynı yere ama daha geç varıyor: tek RAPTOR aramasında çıkmaz,
+    // C yasaklanınca bulunur
+    const D = pattern("D", [0, 3], [0, 2700], { [THURSDAY]: ["08:10"] });
+    const journeys = planJourneys(query(0, 3, "07:55"), makeNetwork([A, B, C, D]));
+    expect(journeys.map((j) => rides(j.legs).join(">"))).toEqual(["A>B", "C", "D"]);
+    expect(journeys[2].tags).toEqual([]);
   });
 
   it("varış saatleri kalkış + durak süresinden hesaplanır (A 08:00 + 10 dk, B 08:15 + 5 dk)", () => {

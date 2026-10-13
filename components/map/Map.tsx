@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import type { MapViewProps } from "./MapView";
 
 /**
- * Leaflet `window` nesnesine ihtiyaç duyduğundan sunucuda çalışamaz.
+ * MapLibre GL tarayıcı API'lerine (window, WebGL) ihtiyaç duyduğundan sunucuda çalışamaz.
  * `ssr: false` ile MapView sadece tarayıcıda yüklenir.
  * (App Router'da `ssr: false` yalnızca Client Component içinde kullanılabilir.)
  */

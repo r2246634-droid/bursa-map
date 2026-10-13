@@ -5,7 +5,7 @@
  *
  *   npm run data:rail-gaps   (npm run data zincirinde fetch-bursaray'den sonra çalışır)
  *
- * Metro (B1/B2) çizgileri OSM'de kesintisiz ve yan yana çizim (offset) için batı → doğu
+ * Metro (M1/M2) çizgileri OSM'de kesintisiz ve yan yana çizim (offset) için batı → doğu
  * yazıldığından dokunulmaz; bu betik sadece boşluklu hatları düzeltir (2026-10: T2, T3).
  */
 import { readFile, writeFile } from "node:fs/promises";

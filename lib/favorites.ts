@@ -17,10 +17,11 @@ import type { Place } from "@/data/types";
  * Böylece veri yenilense de (ad, konum, geçen hatlar) kayıtlar güncel bilgiyi gösterir.
  *
  * İstisna: haritadan dokunulan altlık yerleri ve bırakılan iğneler ("feature") hiçbir veri
- * setinde yok; bunlar için küçük bir anlık görüntü (ad, konum, kategori) saklanır.
+ * setinde yok; bunlar için küçük bir anlık görüntü (ad, konum, kategori) saklanır. Çevredeki
+ * yerler (market, eczane… "amenity") de anlık görüntüyle saklanır: o veri tembel yüklenir.
  */
 
-type FeatureSnapshot = Extract<Place, { kind: "feature" }>;
+type FeatureSnapshot = Extract<Place, { kind: "feature" | "amenity" }>;
 
 export interface FavoriteEntry {
   id: string;
@@ -56,7 +57,11 @@ export const useFavorites = create<FavoritesState>()(
                             position: place.position,
                             category: place.category,
                           }
-                        : undefined,
+                        : // Çevredeki yerler tembel yüklenen büyük bir veride: kayıtlı listesi onu
+                          // indirmeden açılabilsin diye küçük bir kopya saklanır
+                          place.kind === "amenity"
+                          ? { ...place, aliases: undefined }
+                          : undefined,
                   },
                   ...entries,
                 ],

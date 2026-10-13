@@ -3,7 +3,10 @@
 import { Layers, X } from "lucide-react";
 
 import { LAYERS } from "@/data/layers";
-import type { LayerId } from "@/data/types";
+import type { LayerDefinition, LayerId } from "@/data/types";
+
+const MAIN_LAYERS = LAYERS.filter((l) => !l.nearby);
+const NEARBY_LAYERS = LAYERS.filter((l) => l.nearby);
 
 interface LayerControlProps {
   open: boolean;
@@ -56,29 +59,48 @@ export default function LayerControl({ open, onOpenChange, visibleLayers, onTogg
           </button>
         </header>
 
-        <ul className="space-y-1">
-          {LAYERS.map((layer) => (
-            <li key={layer.id}>
-              <label className="flex cursor-pointer items-center gap-3 rounded-xl px-2 py-2.5 hover:bg-slate-900/5">
-                <span
-                  className="h-3 w-3 shrink-0 rounded-full"
-                  style={{ backgroundColor: layer.color }}
-                  aria-hidden
-                />
-                <span className="flex-1 text-sm text-slate-800">{layer.label}</span>
-                <input
-                  type="checkbox"
-                  checked={visibleLayers.has(layer.id)}
-                  onChange={() => onToggle(layer.id)}
-                  className="peer sr-only"
-                />
-                {/* Checkbox'ın switch görünümü */}
-                <span className="relative h-6 w-10 rounded-full bg-slate-300 transition-colors peer-checked:bg-blue-600 peer-focus-visible:ring-2 peer-focus-visible:ring-blue-400 after:absolute after:top-0.5 after:left-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:shadow after:transition-transform peer-checked:after:translate-x-4" />
-              </label>
-            </li>
-          ))}
-        </ul>
+        <div className="max-h-[60dvh] overflow-y-auto md:max-h-[70dvh]">
+          <LayerList layers={MAIN_LAYERS} visibleLayers={visibleLayers} onToggle={onToggle} />
+          <h3 className="mt-4 px-2 text-[11px] font-semibold tracking-wide text-slate-500 uppercase">
+            Çevredeki yerler
+          </h3>
+          <p className="mb-1 px-2 text-xs text-slate-500">
+            Haritanın ortasındaki ~1 km çevrede, yakınlaştırınca tüm ekranda görünür.
+          </p>
+          <LayerList layers={NEARBY_LAYERS} visibleLayers={visibleLayers} onToggle={onToggle} />
+        </div>
       </section>
     </div>
+  );
+}
+
+function LayerList({
+  layers,
+  visibleLayers,
+  onToggle,
+}: {
+  layers: LayerDefinition[];
+  visibleLayers: Set<LayerId>;
+  onToggle: (id: LayerId) => void;
+}) {
+  return (
+    <ul className="space-y-1">
+      {layers.map((layer) => (
+        <li key={layer.id}>
+          <label className="flex cursor-pointer items-center gap-3 rounded-xl px-2 py-2.5 hover:bg-slate-900/5">
+            <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: layer.color }} aria-hidden />
+            <span className="flex-1 text-sm text-slate-800">{layer.label}</span>
+            <input
+              type="checkbox"
+              checked={visibleLayers.has(layer.id)}
+              onChange={() => onToggle(layer.id)}
+              className="peer sr-only"
+            />
+            {/* Checkbox'ın switch görünümü */}
+            <span className="relative h-6 w-10 rounded-full bg-slate-300 transition-colors peer-checked:bg-blue-600 peer-focus-visible:ring-2 peer-focus-visible:ring-blue-400 after:absolute after:top-0.5 after:left-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:shadow after:transition-transform peer-checked:after:translate-x-4" />
+          </label>
+        </li>
+      ))}
+    </ul>
   );
 }

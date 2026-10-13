@@ -2,12 +2,13 @@
  * OSM / Overpass yardımcıları: veri betiklerinin (fetch-bursaray, fetch-bus) ortak kısmı.
  */
 
-const OVERPASS_URL = "https://overpass-api.de/api/interpreter";
+/** Ana sunucu yoğunken başka bir Overpass sunucusu verilebilir: OVERPASS_URL=https://… npm run data:… */
+const OVERPASS_URL = process.env.OVERPASS_URL || "https://overpass-api.de/api/interpreter";
 
 /** lib/map-config.ts içindeki BURSA_BOUNDS ile aynı tutulmalı: [[güney, batı], [kuzey, doğu]] */
 export const BURSA_BOUNDS = [
-  [39.95, 28.6],
-  [40.5, 29.6],
+  [39.55, 28.05],
+  [40.65, 29.95],
 ];
 
 export const round = (n) => Math.round(n * 1e6) / 1e6;

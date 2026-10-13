@@ -39,7 +39,14 @@ describe("GET /api/route — gerçek ağ", () => {
     expect(body.serviceDay).toBe(4);
     expect(body.journeys.length).toBeGreaterThanOrEqual(2);
     expect(body.journeys.some((j) => j.transfers === 0)).toBe(true);
-    expect(body.journeys.some((j) => j.tags.includes("En erken varış"))).toBe(true);
+    expect(body.journeys.some((j) => j.tags.includes("En hızlı"))).toBe(true);
+    // Her seçeneğin ücreti ve mesafesi hesaplanır; aynı hat dizisi iki kez listelenmez
+    for (const j of body.journeys) {
+      expect(j.distanceMeters).toBeGreaterThan(0);
+      expect(j.fare).toBeGreaterThan(0);
+    }
+    const lineSets = body.journeys.map((j) => j.legs.flatMap((l) => (l.type === "ride" ? [l.line] : [])).join(">"));
+    expect(new Set(lineSets).size).toBe(lineSets.length);
 
     for (const j of body.journeys) {
       // Bacaklar zamanda geriye gitmez; çıkış istenen saatten önce olamaz

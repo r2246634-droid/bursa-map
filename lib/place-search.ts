@@ -5,7 +5,9 @@ import { useSyncExternalStore } from "react";
 import { PLACE_BY_ID, PLACES } from "@/data/places";
 import type { Place } from "@/data/types";
 
+import { approxDistanceM, loadAmenities } from "./amenities";
 import { loadBusData } from "./burulas";
+import { BURSA_CENTER } from "./map-config";
 import { createSearchIndex, type SearchIndex } from "./search";
 
 /**
@@ -30,27 +32,76 @@ export function placeBoost(place: Place): number {
   if (place.kind === "poi") return -1.1;
   if (place.kind === "station" && place.mode !== "bus") return -1.1;
   if (place.kind === "line") return -0.1;
+  // Binlerce market/cami/okul, aynı puanlı durak ve adreslerin arkasında kalsın
+  if (place.kind === "amenity") return 0.3;
   return 0;
 }
 
 let index: SearchIndex<Place> = createSearchIndex(PLACES, placeBoost);
 const placeById = new Map(PLACE_BY_ID);
 const listeners = new Set<() => void>();
+/** Tembel yüklenen gruplar (otobüs, çevredeki yerler): indeks her yüklemede hepsiyle yeniden kurulur */
+let busPlaces: Place[] = [];
+let amenityPlaces: Place[] = [];
 let loading: Promise<void> | null = null;
+let amenityLoading: Promise<void> | null = null;
+
+function rebuildIndex() {
+  index = createSearchIndex([...PLACES, ...busPlaces, ...amenityPlaces], placeBoost);
+  for (const listener of listeners) listener();
+}
 
 /** BURULAŞ verisini yükleyip arama indeksine ekler (birden çok çağrı tek yükleme yapar) */
 export function ensureBusPlacesLoaded(): Promise<void> {
   loading ??= loadBusData()
     .then(({ linePlaces, stopPlaces }) => {
-      for (const p of [...linePlaces, ...stopPlaces]) placeById.set(p.id, p);
-      index = createSearchIndex([...PLACES, ...linePlaces, ...stopPlaces], placeBoost);
-      for (const listener of listeners) listener();
+      busPlaces = [...linePlaces, ...stopPlaces];
+      for (const p of busPlaces) placeById.set(p.id, p);
+      rebuildIndex();
     })
     .catch((error) => {
       loading = null;
       console.error("BURULAŞ verisi yüklenemedi", error);
     });
   return loading;
+}
+
+/**
+ * Çevredeki yerleri (market, okul, eczane…) yükleyip haritada tıklanabilir ve aranabilir yapar.
+ * Adsız olanlar (ör. adsız park) aramaya girmez, haritada dokunulunca yine bulunur.
+ */
+export function ensureAmenityPlacesLoaded(): Promise<void> {
+  amenityLoading ??= loadAmenities()
+    .then(({ places, searchable }) => {
+      for (const p of places) placeById.set(p.id, p);
+      amenityPlaces = searchable;
+      rebuildIndex();
+    })
+    .catch((error) => {
+      amenityLoading = null;
+      console.error("Çevredeki yerler yüklenemedi", error);
+    });
+  return amenityLoading;
+}
+
+/** Arama kutusuna odaklanınca: aranabilecek tüm tembel veriler */
+export function ensureSearchDataLoaded(): void {
+  void ensureBusPlacesLoaded();
+  void ensureAmenityPlacesLoaded();
+}
+
+/** Haritanın baktığı nokta [enlem, boylam]; MapView her kamera hareketi bitince günceller */
+let viewCenter: [number, number] = [BURSA_CENTER[1], BURSA_CENTER[0]];
+export function setSearchCenter(center: [number, number]) {
+  viewCenter = center;
+}
+
+/**
+ * Aynı puanlı sonuçlarda (ör. "a101" → yüzlerce A101) haritanın baktığı yere yakın olan öne
+ * geçsin. Sadece çevredeki yerlere uygulanır; diğerleri ad sırasında kalır.
+ */
+export function nearViewFirst(place: Place): number {
+  return place.kind === "amenity" ? approxDistanceM(viewCenter, place.position) : 0;
 }
 
 function subscribe(listener: () => void) {

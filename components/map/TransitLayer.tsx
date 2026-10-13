@@ -31,11 +31,11 @@ const MODE_STYLE = {
 
 /**
  * Aynı yolu paylaşan hatları zıt yönlere kaydırarak (line-offset) yan yana gösteriyoruz.
- * Kaydırma çizim yönüne göre; B1/B2 veri betiğinde batı → doğu yazılıyor.
+ * Kaydırma çizim yönüne göre; M1/M2 veri betiğinde batı → doğu yazılıyor.
  */
 const LINE_OFFSETS: Partial<Record<LineRef, number>> = {
-  B1: -MODE_STYLE.metro.weight / 2,
-  B2: MODE_STYLE.metro.weight / 2,
+  M1: -MODE_STYLE.metro.weight / 2,
+  M2: MODE_STYLE.metro.weight / 2,
 };
 
 const OFFSET_EXPRESSION: ExpressionSpecification = [

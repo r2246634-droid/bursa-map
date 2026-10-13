@@ -2,15 +2,16 @@
 export const BURSA_CENTER: [number, number] = [29.061, 40.1885];
 
 /**
- * Kullanıcının dışına çıkamayacağı sınır kutusu.
- * Mudanya, Gemlik, İnegöl ve Uludağ'ı kapsayacak genişlikte tutuldu.
+ * Kullanıcının dışına çıkamayacağı sınır kutusu: Bursa ilinin tamamı (OSM il sınırı
+ * relation 223463: 28,09–29,91 D, 39,59–40,76 K) küçük bir payla. Kuzeyde il sınırı denizde
+ * 40,76'ya uzanıyor; kara 40,6'da bitiyor, kutu orada kesildi.
  * [batı, güney, doğu, kuzey] — scripts/lib/osm.mjs içindeki BURSA_BOUNDS ile aynı alan.
  */
-export const BURSA_BOUNDS: [number, number, number, number] = [28.6, 39.95, 29.6, 40.5];
+export const BURSA_BOUNDS: [number, number, number, number] = [28.05, 39.55, 29.95, 40.65];
 
 /**
- * MapLibre 512px karo kullanır: aynı zoom değeri Leaflet'tekinden bir seviye yakın görünür.
- * Değerler o yüzden Leaflet dönemindekinden 1 düşük.
+ * MapLibre 512px karo kullanır: aynı zoom değeri 256px karolu haritalardakinden (Leaflet,
+ * OSM web sitesi) bir seviye yakın görünür.
  */
 export const MAP_ZOOM = {
   initial: 12,

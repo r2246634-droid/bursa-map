@@ -1,8 +1,23 @@
-import { BusFront, MapPin, TrainFront, TramFront, type LucideIcon } from "lucide-react";
+import {
+  Baby,
+  Banknote,
+  BusFront,
+  Landmark,
+  Mail,
+  MapPin,
+  MoonStar,
+  Pill,
+  School,
+  ShoppingCart,
+  TrainFront,
+  TramFront,
+  Trees,
+  type LucideIcon,
+} from "lucide-react";
 
 import { LAYER_BY_ID } from "@/data/layers";
 import { LINE_COLORS, STATION_LABEL } from "@/data/transit-network";
-import type { LineRef, Place, TransitMode } from "@/data/types";
+import type { LayerId, LineRef, Place, TransitMode } from "@/data/types";
 import { BUS_LINE_COLOR, lineRouteSummary } from "@/lib/burulas";
 
 const MODE_ICON: Record<TransitMode, LucideIcon> = {
@@ -11,11 +26,23 @@ const MODE_ICON: Record<TransitMode, LucideIcon> = {
   bus: BusFront,
 };
 
+/** Çevredeki yer türlerinin ikonları (ATM ayrıca: "bank" katmanında ama banknot ikonu) */
+const AMENITY_ICON: Partial<Record<LayerId, LucideIcon>> = {
+  market: ShoppingCart,
+  school: School,
+  kindergarten: Baby,
+  pharmacy: Pill,
+  mosque: MoonStar,
+  park: Trees,
+  bank: Landmark,
+  post: Mail,
+};
+
 /** Arama önerileri ve sonuç kartlarında ortak kullanılan küçük görsel parçalar. */
 
 /**
  * Hat rozeti. Raylı hatlar kendi renginde; otobüs hatları tek tip mor çerçeveli.
- * (BURULAŞ'ta "B1"/"B2" otobüs hattıdır — metro B1/B2 rengini almaması için tür ayrımı şart.)
+ * (BURULAŞ'ta "B1"/"B2" otobüs hattıdır — metro M1/M2 ile karışmaması için tür ayrımı şart.)
  */
 export function LineBadge({ line, bus = false }: { line: LineRef; bus?: boolean }) {
   if (bus) {
@@ -51,13 +78,21 @@ export function TransferTag() {
 
 export function PlaceIcon({ place, className = "h-10 w-10" }: { place: Place; className?: string }) {
   const Icon =
-    place.kind === "station" ? MODE_ICON[place.mode] : place.kind === "line" ? BusFront : MapPin;
+    place.kind === "station"
+      ? MODE_ICON[place.mode]
+      : place.kind === "line"
+        ? BusFront
+        : place.kind === "amenity"
+          ? place.category === "ATM"
+            ? Banknote
+            : (AMENITY_ICON[place.layer] ?? MapPin)
+          : MapPin;
   const color =
     place.kind === "line" || (place.kind === "station" && place.mode === "bus")
       ? BUS_LINE_COLOR
       : place.kind === "station"
         ? LINE_COLORS[place.lines[0]]
-        : place.kind === "poi"
+        : place.kind === "poi" || place.kind === "amenity"
           ? LAYER_BY_ID[place.layer].color
           : "#475569"; // altlıktan seçilen yer / bırakılan iğne
 
@@ -76,10 +111,13 @@ export function placeSubtitle(place: Place) {
   if (place.kind === "poi") return LAYER_BY_ID[place.layer].label;
   if (place.kind === "station") return STATION_LABEL[place.mode];
   if (place.kind === "line") return "Otobüs hattı";
+  if (place.kind === "amenity") {
+    return [place.category, place.area, place.approximate && "yaklaşık konum"].filter(Boolean).join(" · ");
+  }
   return place.category;
 }
 
-/** "Metro istasyonu  B1 B2  Aktarma" satırı */
+/** "Metro istasyonu  M1 M2  Aktarma" satırı */
 export function PlaceMeta({ place }: { place: Place }) {
   return (
     <span className="flex flex-wrap items-center gap-1 text-xs text-slate-500">

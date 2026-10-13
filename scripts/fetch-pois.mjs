@@ -1,5 +1,5 @@
 /**
- * Öne çıkan ilgi noktalarının (kampüs, AVM, otogar, aktarma merkezi) konumlarını
+ * Öne çıkan ilgi noktalarının (kampüs, AVM, hastane, otogar, aktarma merkezi, önemli yerler) konumlarını
  * OpenStreetMap'teki gerçek kayıtlarından alıp data/pois.json'a yazar.
  *
  *   npm run data:pois   →  data/pois.json
@@ -45,6 +45,67 @@ const POIS = [
     osm: "way/1355946848",
     name: "Üniversite Aktarma Merkezi",
     layer: "transfer",
+  },
+
+  // AVM'ler
+  { id: "anatolium", osm: "way/309766158", name: "Anatolium AVM", layer: "mall" },
+  { id: "zafer-plaza", osm: "way/26470681", name: "Zafer Plaza AVM", layer: "mall" },
+  { id: "ozdilekpark", osm: "way/477694851", name: "ÖzdilekPark Bursa", layer: "mall", aliases: ["Özdilek"] },
+  { id: "marka-avm", osm: "way/557570250", name: "Sur Yapı Marka AVM", layer: "mall", aliases: ["Marka AVM"] },
+  { id: "podyum-park", osm: "way/429895428", name: "Podyum Park AVM", layer: "mall", aliases: ["PodyumPark"] },
+  { id: "downtown", osm: "node/11449933766", name: "Bursa Downtown AVM", layer: "mall" },
+  { id: "as-merkez", osm: "way/1279592177", name: "As Merkez Outlet", layer: "mall", aliases: ["As Outlet"] },
+  { id: "arena-avm", osm: "way/302546339", name: "Arena AVM", layer: "mall" },
+
+  // Hastaneler
+  { id: "sehir-hastanesi", osm: "way/632460745", name: "Bursa Şehir Hastanesi", layer: "hospital" },
+  {
+    id: "uludag-hastanesi",
+    osm: "way/666689302",
+    name: "Bursa Uludağ Üniversitesi Hastanesi",
+    layer: "hospital",
+    aliases: ["Uludağ Tıp Fakültesi", "Tıp Fakültesi Hastanesi"],
+  },
+  {
+    id: "yuksek-ihtisas",
+    osm: "way/328024078", // Yıldırım, Mimar Sinan Mah.
+    name: "Bursa Yüksek İhtisas Eğitim ve Araştırma Hastanesi",
+    layer: "hospital",
+    aliases: ["Yüksek İhtisas"],
+  },
+  { id: "cekirge-devlet", osm: "way/26446090", name: "Çekirge Devlet Hastanesi", layer: "hospital" },
+  { id: "dortcelik", osm: "way/302549670", name: "Dörtçelik Çocuk Hastanesi", layer: "hospital" },
+  { id: "acibadem-bursa", osm: "way/308065253", name: "Acıbadem Bursa Hastanesi", layer: "hospital" },
+  { id: "medical-park-bursa", osm: "way/411659382", name: "VM Medical Park Bursa", layer: "hospital" },
+
+  // Önemli yerler
+  { id: "ulu-cami", osm: "way/26434413", name: "Ulu Cami", layer: "landmark" },
+  { id: "koza-han", osm: "relation/1018973", name: "Koza Han", layer: "landmark", aliases: ["Kapalıçarşı"] },
+  { id: "yesil-turbe", osm: "way/254313386", name: "Yeşil Türbe", layer: "landmark" },
+  {
+    id: "osman-gazi-turbesi",
+    osm: "way/325992025",
+    name: "Osman Gazi Türbesi (Tophane)",
+    layer: "landmark",
+    aliases: ["Tophane", "Orhan Gazi Türbesi"],
+  },
+  { id: "cumalikizik", osm: "node/12894581039", name: "Cumalıkızık", layer: "landmark" },
+  {
+    id: "teleferik-teferruc",
+    osm: "way/1138116211",
+    name: "Bursa Teleferik (Teferrüç)",
+    layer: "landmark",
+    aliases: ["Teleferik", "Uludağ Teleferik"],
+  },
+  { id: "merinos-parki", osm: "way/189723143", name: "Merinos Parkı", layer: "landmark" },
+  { id: "botanik-park", osm: "way/26445865", name: "Soğanlı Botanik Parkı", layer: "landmark", aliases: ["Botanik Park"] },
+  { id: "hudavendigar-parki", osm: "way/334176086", name: "Hüdavendigar Kent Parkı", layer: "landmark" },
+  {
+    id: "yenisehir-havalimani",
+    osm: "way/83334472",
+    name: "Bursa Yenişehir Havalimanı",
+    layer: "landmark",
+    aliases: ["Havalimanı", "Havaalanı"],
   },
 ];
 

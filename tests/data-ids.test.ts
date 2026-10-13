@@ -72,7 +72,7 @@ describe("formatStopName — BURULAŞ ham durak adı", () => {
 describe("BURULAŞ yer kimlikleri ve özetler", () => {
   it("hat ve durak kimlikleri sabit biçimdedir (favoriler bunlara bağlı)", () => {
     expect(busLinePlaceId("22C")).toBe("bus-line-22C");
-    expect(busLinePlaceId("B1")).toBe("bus-line-B1"); // otobüs B1, metro B1'den (metro-…) ayrı
+    expect(busLinePlaceId("B1")).toBe("bus-line-B1"); // otobüs B1, metro M1/M2 istasyonlarından (metro-…) ayrı
     expect(busStopPlaceId(3467)).toBe("bus-stop-3467");
   });
 

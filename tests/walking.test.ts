@@ -133,6 +133,8 @@ describe("refineWalkLegs — seçenekleri sokak yürüyüşüyle güncelleme", (
     durationMin: 0,
     transfers: 0,
     walkMeters: 0,
+    distanceMeters: 0,
+    fare: 0,
     legs,
     tags: [],
   });

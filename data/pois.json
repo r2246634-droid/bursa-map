@@ -1,6 +1,6 @@
 {
   "attribution": "© OpenStreetMap katkıda bulunanlar (ODbL)",
-  "generatedAt": "2026-10-07",
+  "generatedAt": "2026-10-09",
   "pois": [
     {
       "id": "uludag-gorukle",
@@ -80,6 +80,293 @@
       "position": [
         40.217679,
         28.869842
+      ]
+    },
+    {
+      "id": "anatolium",
+      "osm": "way/309766158",
+      "name": "Anatolium AVM",
+      "layer": "mall",
+      "position": [
+        40.267589,
+        29.053764
+      ]
+    },
+    {
+      "id": "zafer-plaza",
+      "osm": "way/26470681",
+      "name": "Zafer Plaza AVM",
+      "layer": "mall",
+      "position": [
+        40.187578,
+        29.059507
+      ]
+    },
+    {
+      "id": "ozdilekpark",
+      "osm": "way/477694851",
+      "name": "ÖzdilekPark Bursa",
+      "layer": "mall",
+      "aliases": [
+        "Özdilek"
+      ],
+      "position": [
+        40.212378,
+        28.91819
+      ]
+    },
+    {
+      "id": "marka-avm",
+      "osm": "way/557570250",
+      "name": "Sur Yapı Marka AVM",
+      "layer": "mall",
+      "aliases": [
+        "Marka AVM"
+      ],
+      "position": [
+        40.20724,
+        28.995876
+      ]
+    },
+    {
+      "id": "podyum-park",
+      "osm": "way/429895428",
+      "name": "Podyum Park AVM",
+      "layer": "mall",
+      "aliases": [
+        "PodyumPark"
+      ],
+      "position": [
+        40.225383,
+        28.968418
+      ]
+    },
+    {
+      "id": "downtown",
+      "osm": "node/11449933766",
+      "name": "Bursa Downtown AVM",
+      "layer": "mall",
+      "position": [
+        40.2207,
+        29.012685
+      ]
+    },
+    {
+      "id": "as-merkez",
+      "osm": "way/1279592177",
+      "name": "As Merkez Outlet",
+      "layer": "mall",
+      "aliases": [
+        "As Outlet"
+      ],
+      "position": [
+        40.255307,
+        29.062043
+      ]
+    },
+    {
+      "id": "arena-avm",
+      "osm": "way/302546339",
+      "name": "Arena AVM",
+      "layer": "mall",
+      "position": [
+        40.219444,
+        28.90035
+      ]
+    },
+    {
+      "id": "sehir-hastanesi",
+      "osm": "way/632460745",
+      "name": "Bursa Şehir Hastanesi",
+      "layer": "hospital",
+      "position": [
+        40.268901,
+        28.909097
+      ]
+    },
+    {
+      "id": "uludag-hastanesi",
+      "osm": "way/666689302",
+      "name": "Bursa Uludağ Üniversitesi Hastanesi",
+      "layer": "hospital",
+      "aliases": [
+        "Uludağ Tıp Fakültesi",
+        "Tıp Fakültesi Hastanesi"
+      ],
+      "position": [
+        40.221628,
+        28.869813
+      ]
+    },
+    {
+      "id": "yuksek-ihtisas",
+      "osm": "way/328024078",
+      "name": "Bursa Yüksek İhtisas Eğitim ve Araştırma Hastanesi",
+      "layer": "hospital",
+      "aliases": [
+        "Yüksek İhtisas"
+      ],
+      "position": [
+        40.184842,
+        29.128643
+      ]
+    },
+    {
+      "id": "cekirge-devlet",
+      "osm": "way/26446090",
+      "name": "Çekirge Devlet Hastanesi",
+      "layer": "hospital",
+      "position": [
+        40.202289,
+        29.013994
+      ]
+    },
+    {
+      "id": "dortcelik",
+      "osm": "way/302549670",
+      "name": "Dörtçelik Çocuk Hastanesi",
+      "layer": "hospital",
+      "position": [
+        40.218524,
+        28.920708
+      ]
+    },
+    {
+      "id": "acibadem-bursa",
+      "osm": "way/308065253",
+      "name": "Acıbadem Bursa Hastanesi",
+      "layer": "hospital",
+      "position": [
+        40.212821,
+        28.976127
+      ]
+    },
+    {
+      "id": "medical-park-bursa",
+      "osm": "way/411659382",
+      "name": "VM Medical Park Bursa",
+      "layer": "hospital",
+      "position": [
+        40.193508,
+        29.060479
+      ]
+    },
+    {
+      "id": "ulu-cami",
+      "osm": "way/26434413",
+      "name": "Ulu Cami",
+      "layer": "landmark",
+      "position": [
+        40.183923,
+        29.061882
+      ]
+    },
+    {
+      "id": "koza-han",
+      "osm": "relation/1018973",
+      "name": "Koza Han",
+      "layer": "landmark",
+      "aliases": [
+        "Kapalıçarşı"
+      ],
+      "position": [
+        40.184379,
+        29.063538
+      ]
+    },
+    {
+      "id": "yesil-turbe",
+      "osm": "way/254313386",
+      "name": "Yeşil Türbe",
+      "layer": "landmark",
+      "position": [
+        40.181412,
+        29.074883
+      ]
+    },
+    {
+      "id": "osman-gazi-turbesi",
+      "osm": "way/325992025",
+      "name": "Osman Gazi Türbesi (Tophane)",
+      "layer": "landmark",
+      "aliases": [
+        "Tophane",
+        "Orhan Gazi Türbesi"
+      ],
+      "position": [
+        40.186771,
+        29.057323
+      ]
+    },
+    {
+      "id": "cumalikizik",
+      "osm": "node/12894581039",
+      "name": "Cumalıkızık",
+      "layer": "landmark",
+      "position": [
+        40.176352,
+        29.172269
+      ]
+    },
+    {
+      "id": "teleferik-teferruc",
+      "osm": "way/1138116211",
+      "name": "Bursa Teleferik (Teferrüç)",
+      "layer": "landmark",
+      "aliases": [
+        "Teleferik",
+        "Uludağ Teleferik"
+      ],
+      "position": [
+        40.171149,
+        29.083295
+      ]
+    },
+    {
+      "id": "merinos-parki",
+      "osm": "way/189723143",
+      "name": "Merinos Parkı",
+      "layer": "landmark",
+      "position": [
+        40.199293,
+        29.053162
+      ]
+    },
+    {
+      "id": "botanik-park",
+      "osm": "way/26445865",
+      "name": "Soğanlı Botanik Parkı",
+      "layer": "landmark",
+      "aliases": [
+        "Botanik Park"
+      ],
+      "position": [
+        40.220345,
+        29.03791
+      ]
+    },
+    {
+      "id": "hudavendigar-parki",
+      "osm": "way/334176086",
+      "name": "Hüdavendigar Kent Parkı",
+      "layer": "landmark",
+      "position": [
+        40.199779,
+        29.00024
+      ]
+    },
+    {
+      "id": "yenisehir-havalimani",
+      "osm": "way/83334472",
+      "name": "Bursa Yenişehir Havalimanı",
+      "layer": "landmark",
+      "aliases": [
+        "Havalimanı",
+        "Havaalanı"
+      ],
+      "position": [
+        40.258202,
+        29.561891
       ]
     }
   ]

@@ -58,8 +58,15 @@ export interface Journey {
   durationMin: number;
   transfers: number;
   walkMeters: number;
+  /** Yürüme + araç güzergâhı toplam mesafe (metre) */
+  distanceMeters: number;
+  /** Tahmini BursaKart tam bilet toplamı (TL, aktarma indirimi dahil; bkz. fares.ts) */
+  fare: number;
   legs: JourneyLeg[];
-  /** Kullanıcıya gösterilecek etiketler: "En erken varış", "En az aktarma", "Yürüyerek" */
+  /**
+   * Kullanıcıya gösterilecek etiketler (raptor.ts → JOURNEY_TAGS): hangi ölçütte en iyi olduğu
+   * ("En hızlı", "En ucuz"…) ve "Yürüyerek"
+   */
   tags: string[];
 }
 

@@ -25,6 +25,8 @@ npm run dev          # http://localhost:3000
 | `npm test` | Birim testleri (Vitest) — `npm run test:watch` izleme modu |
 | `npm run lint` · `npm run typecheck` | ESLint · TypeScript kontrolü |
 | `npm run data` | OSM verisini yeniler (öne çıkan noktalar, metro/tramvay, tramvay boşlukları) |
+| `node scripts/geocode-bim.mjs` | BİM şube adreslerini Nominatim ile koordinata çevirir (`data/raw/bim-geocoded.json`, ~15 dk; `data:amenities` bunu kullanır) |
+| `npm run data:amenities` | Çevredeki yerleri (zincir market, okul, anaokulu, eczane, cami, park, banka/ATM, PTT) OSM ve All The Places'tan toplu indirir (`data/amenities.json`) |
 | `npm run data:walk` | Yaya yolu ağını OSM'den yeniden üretir (`data/walk/`, birkaç dakika) |
 | `npm run data:shapes` | Hat güzergâhlarını hat başına dosyalara böler (dev/build öncesi otomatik) |
 
@@ -33,7 +35,7 @@ npm run dev          # http://localhost:3000
 ```
 app/              sayfa, PWA manifest, API: app/api/route (yol tarifi)
 components/       MapShell (uygulama durumu), map/ (MapLibre katmanları), ui/ (paneller, kartlar)
-data/             işlenmiş veri: bursaray.json (OSM raylı), pois.json, burulas/ (otobüs veri seti)
+data/             işlenmiş veri: bursaray.json (OSM raylı), pois.json, amenities.json (çevredeki yerler), burulas/ (otobüs veri seti)
 lib/              arama, BURULAŞ erişimi, favoriler, harita ayarları, routing/ (RAPTOR, takvim, saat)
 scripts/          veri betikleri (OSM, BURULAŞ dönüştürme/bölme)
 tests/            Vitest birim testleri
@@ -43,6 +45,8 @@ tests/            Vitest birim testleri
 
 - **OpenStreetMap** (Overpass): metro, tramvay, öne çıkan noktalar — © OpenStreetMap katkıda bulunanlar, ODbL.
 - **OpenFreeMap**: altlık harita (anahtar gerektirmez).
+- **Photon (komoot)**: arama kutusundaki adres sonuçları (anahtar gerektirmez, adil kullanım sınırı var;
+  `NEXT_PUBLIC_GEOCODE_URL` ile kendi sunucunuza yönlendirilebilir, bkz. `.env.example`).
 - **BURULAŞ / BursaKart**: otobüs hatları, duraklar, güzergâhlar, sefer saatleri (`data/burulas/`).
   ⚠️ Bu veri bursakart.com.tr'nin herkese açık olarak sunulmamış servisinden toplanmıştır;
   **yayına almadan önce BURULAŞ'tan kullanım izni alınmalıdır.**
@@ -80,7 +84,8 @@ dışındaki (uzak ilçe) yürüyüşler kuş uçuşu × 1,25 tahmin edilir ve y
 Yol tarifi sunucuda çalıştığı için statik barındırma yetmez; Node.js destekli bir ortam gerekir.
 
 1. <https://vercel.com> → "Add New Project" → GitHub'daki `bursa-map` deposunu içe aktarın.
-2. Framework: Next.js (otomatik). Build komutu `npm run build` (varsayılan).
+2. Framework: Next.js (otomatik). Build komutu `npm run build` (varsayılan). Sunucu bölgesi
+   `vercel.json` içinde Frankfurt (`fra1`) olarak ayarlıdır (Türkiye'ye en yakın bölge).
 3. Environment Variables: `NEXT_PUBLIC_REVERSE_GEOCODE_URL` (yayında zorunlu, bkz. `.env.example`).
 4. Deploy. Sonraki her `git push` otomatik yayınlanır.
 

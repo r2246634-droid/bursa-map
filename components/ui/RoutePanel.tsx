@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowUpDown, Clock, LocateFixed, X } from "lucide-react";
 
-import type { RouteEndpoints } from "@/components/map/RouteOverlay";
+import type { PanelInset, RouteEndpoints } from "@/components/map/RouteOverlay";
 import type { Place } from "@/data/types";
 import { formatDistance, haversineMeters } from "@/lib/geo";
 import type { JourneysState } from "@/lib/routing/client";
@@ -18,8 +18,8 @@ interface RoutePanelProps extends RouteEndpoints {
   open: boolean;
   onChange: (route: RouteEndpoints) => void;
   onClose: () => void;
-  /** Panelin görünen yüksekliği; harita odaklanırken bu alanı boş bırakır */
-  onHeightChange: (height: number) => void;
+  /** Panelin haritadan kapladığı alan (dikeyde alt, yatayda sol); harita odaklanırken bu alanı boş bırakır */
+  onInsetChange: (inset: PanelInset) => void;
   /** Sunucudan (RAPTOR) gelen yol tarifi seçenekleri */
   journeys: JourneysState;
   /** Kalkış saati (datetime-local değeri); null = şimdi */
@@ -39,9 +39,15 @@ interface RoutePanelProps extends RouteEndpoints {
 /** Tutamaçta bu kadar pikselden uzun sürükleme, dokunma değil kaydırma sayılır */
 const DRAG_THRESHOLD_PX = 40;
 
+/** Tailwind'in `landscape:` varyantıyla aynı sorgu: panel bu durumda sol kenara geçer */
+const LANDSCAPE_QUERY = "(orientation: landscape)";
+const NO_INSET: PanelInset = { bottom: 0, left: 0 };
+
 /**
- * Alttan açılan "Yol Tarifi" paneli. Kapalıyken de DOM'da kalır (kaydırma animasyonu ve
- * yazılan metinlerin korunması için); `inert` ile odak ve ekran okuyucudan gizlenir.
+ * "Yol Tarifi" paneli. Dikey ekranda alttan açılır; yatay ekranda (masaüstü, yan çevrilmiş
+ * telefon) haritanın ortasını kapatmasın diye sol kenarda yüzen bir kart olur.
+ * Kapalıyken de DOM'da kalır (kaydırma animasyonu ve yazılan metinlerin korunması için);
+ * `inert` ile odak ve ekran okuyucudan gizlenir.
  */
 export default function RoutePanel({
   open,
@@ -49,7 +55,7 @@ export default function RoutePanel({
   to,
   onChange,
   onClose,
-  onHeightChange,
+  onInsetChange,
   journeys,
   departAt,
   onDepartAtChange,
@@ -118,11 +124,22 @@ export default function RoutePanel({
   useEffect(() => {
     const sheet = sheetRef.current;
     if (!sheet) return;
-    const observer = new ResizeObserver(() => onHeightChange(open ? sheet.offsetHeight : 0));
+    const landscape = window.matchMedia(LANDSCAPE_QUERY);
+    const report = () => {
+      if (!open) return onInsetChange(NO_INSET);
+      // Yatayda panel solda: sol kenardan panelin sağ kenarına kadar olan alan
+      if (landscape.matches) return onInsetChange({ bottom: 0, left: sheet.offsetLeft + sheet.offsetWidth });
+      onInsetChange({ bottom: sheet.offsetHeight, left: 0 });
+    };
+    const observer = new ResizeObserver(report);
     observer.observe(sheet);
-    onHeightChange(open ? sheet.offsetHeight : 0);
-    return () => observer.disconnect();
-  }, [open, onHeightChange]);
+    landscape.addEventListener("change", report);
+    report();
+    return () => {
+      observer.disconnect();
+      landscape.removeEventListener("change", report);
+    };
+  }, [open, onInsetChange]);
 
   useEffect(() => {
     if (!open) return;
@@ -162,8 +179,10 @@ export default function RoutePanel({
       aria-label="Yol tarifi"
       aria-hidden={!open}
       inert={!open}
-      className={`absolute inset-x-0 bottom-0 z-[1100] mx-auto max-h-[88%] max-w-lg overflow-y-auto overscroll-contain rounded-t-3xl bg-white/95 px-4 pt-2 pb-4 shadow-[0_-8px_30px_rgb(15_23_42/0.15)] backdrop-blur-md transition-transform duration-300 ease-out ${
-        open ? "translate-y-0" : "translate-y-full"
+      className={`absolute inset-x-0 bottom-0 z-[1100] mx-auto max-h-[88%] max-w-lg overflow-y-auto overscroll-contain rounded-t-3xl bg-white/95 px-4 pt-2 pb-4 shadow-[0_-8px_30px_rgb(15_23_42/0.15)] backdrop-blur-md transition-transform duration-300 ease-out landscape:top-[calc(0.75rem+env(safe-area-inset-top))] landscape:right-auto landscape:bottom-auto landscape:left-[calc(0.75rem+env(safe-area-inset-left))] landscape:mx-0 landscape:max-h-[calc(100%-1.5rem-env(safe-area-inset-top))] landscape:w-[380px] landscape:max-w-[calc(100%-1.5rem)] landscape:rounded-3xl landscape:shadow-[0_8px_30px_rgb(15_23_42/0.18)] ${
+        open
+          ? "translate-y-0 landscape:translate-x-0"
+          : "translate-y-full landscape:translate-y-0 landscape:-translate-x-[calc(100%+2rem)]"
       }`}
     >
       <button

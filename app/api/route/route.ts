@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { BURSA_BOUNDS } from "@/lib/map-config";
 import { HOLIDAYS_KNOWN_UNTIL, neighbourSchedules, serviceClock } from "@/lib/routing/calendar";
+import { FARES_AS_OF } from "@/lib/routing/fares";
 import { getNetwork } from "@/lib/routing/network";
 import { planWithStreetWalking } from "@/lib/routing/refine";
 import type { RouteErrorResponse, RoutePoint, RouteResponse } from "@/lib/routing/types";
@@ -15,8 +16,7 @@ import type { RouteErrorResponse, RoutePoint, RouteResponse } from "@/lib/routin
  * ağı ilk istekte kurulur ve sunucu süreci boyunca bellekte kalır.
  */
 export const runtime = "nodejs";
-/** Frankfurt: Türkiye'deki kullanıcılara en yakın bölge */
-export const preferredRegion = "fra1";
+// Sunucu bölgesi (Frankfurt, fra1) vercel.json'da: Next 16'da preferredRegion kullanımdan kalktı
 export const dynamic = "force-dynamic";
 
 const [west, south, east, north] = BURSA_BOUNDS;
@@ -61,6 +61,7 @@ export function GET(request: NextRequest) {
 
   const notes = [
     "Varış saatleri ilk duraktan kalkış saatine göre tahmin edilmiştir (otobüs 20, tramvay 16, metro 35 km/s ortalama).",
+    `Ücretler ${FARES_AS_OF} BursaKart tam bilet tarifesine göre tahminidir (90 dk içinde aktarma indirimi dahil); tarifede kademesi belirtilmeyen otobüs hatları kısa hat ücretiyle hesaplanır.`,
   ];
   if (!streetAccess || !allStreetRouted) {
     notes.push("Yürüme mesafelerinin bir kısmı yaya yolu ağının dışında kaldığı için kuş uçuşu tahmindir.");

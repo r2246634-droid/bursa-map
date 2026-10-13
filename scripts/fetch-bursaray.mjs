@@ -21,12 +21,12 @@ import {
 /**
  * Çekilecek hatlar. Her hattın tek yön relation'ı yeterli (diğer yön aynı rayları kullanıyor).
  *  - reverse: geometriyi ters çevir. Ortak gövdedeki metro hatlarını yan yana kaydırarak
- *    (offset) çiziyoruz; kaydırma yönü çizim yönüne bağlı olduğundan B1/B2 batı → doğu yazılır.
+ *    (offset) çiziyoruz; kaydırma yönü çizim yönüne bağlı olduğundan M1/M2 batı → doğu yazılır.
  *  - fallbackColor: OSM'de `colour` etiketi yoksa kullanılacak renk.
  */
 const LINES = [
-  { ref: "B1", mode: "metro", relation: 7868620 }, // Geçit/Balat → Arabayatağı
-  { ref: "B2", mode: "metro", relation: 7869620, reverse: true }, // Kestel → Üniversite
+  { ref: "M1", mode: "metro", relation: 7868620 }, // Geçit/Balat → Arabayatağı
+  { ref: "M2", mode: "metro", relation: 7869620, reverse: true }, // Kestel → Üniversite
   // Tramvay renkleri OSM'de yok; buradakiler resmi renkler değil, ayırt edilebilir seçildi
   { ref: "T1", mode: "tram", relation: 11322581, fallbackColor: "#16a34a" }, // Kent Meydanı – Heykel (ring)
   { ref: "T2", mode: "tram", relation: 14502329, fallbackColor: "#d97706" }, // Kent Meydanı → Terminal
@@ -40,7 +40,7 @@ const COLOR_HEX = { red: "#e30613", black: "#1f2937", blue: "#0057b8", green: "#
 
 /**
  * Aktarma istasyonu:
- *  - aynı türdeki hatların ayrıldığı uç istasyonlar (ör. B1/B2 için Bursaspor/Acemler), veya
+ *  - aynı türdeki hatların ayrıldığı uç istasyonlar (ör. M1/M2 için Bursaspor/Acemler), veya
  *  - bu mesafede diğer türden (metro ↔ tramvay) bir istasyon bulunanlar.
  */
 const TRANSFER_RADIUS_M = 250;
@@ -52,11 +52,11 @@ const TRANSFER_RADIUS_M = 250;
 const OSM_OVERRIDES = {
   lines: {
     // OSM'de "black" olarak etiketli, resmi hat rengi mavi
-    B2: { color: "#0057b8" },
+    M2: { color: "#0057b8" },
   },
   stations: [
-    // OSM'deki B2 relation'ında Duaçınarı durağı eksik
-    { mode: "metro", name: "Duaçınarı", addLines: ["B2"] },
+    // OSM'deki M2 relation'ında Duaçınarı durağı eksik
+    { mode: "metro", name: "Duaçınarı", addLines: ["M2"] },
   ],
 };
 

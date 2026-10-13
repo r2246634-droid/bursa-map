@@ -13,9 +13,10 @@
  *   3. İyileşen duraklardan yürüyerek aktarmaları gevşet.
  * Varış saatleri: sefer kalkışı + desenin durak süre tahmini (time.ts → estimateStopOffsets).
  */
-import { getNetwork, WALK_FACTOR, WALK_SPEED, walkSeconds, type Network } from "./network";
+import { journeyFare } from "./fares";
+import { getNetwork, WALK_FACTOR, WALK_SPEED, type Network } from "./network";
 import { haversineMeters } from "./time";
-import type { Journey, JourneyLeg, RoutePoint } from "./types";
+import type { Journey, JourneyLeg, RoutePoint, WalkLeg } from "./types";
 
 /** En fazla araç sayısı (= aktarma + 1) */
 const MAX_RIDES = 5;
@@ -32,6 +33,25 @@ const TRANSFER_SLACK_S = 3 * 60;
 const WALK_ONLY_MAX_M = 2500;
 /** Seçenekleri sıralarken her aktarma bu kadar dakika "pahalı" sayılır */
 const TRANSFER_PENALTY_S = 5 * 60;
+/**
+ * Alternatif arama: bulunan her seçeneğin hatları tek tek yasaklanıp yeniden aranır
+ * (findAlternatives). En fazla bu kadar RAPTOR araması yapılır…
+ */
+const MAX_SEARCHES = 16;
+/** …ve kullanıcıya en fazla bu kadar seçenek gösterilir */
+const MAX_OPTIONS = 12;
+/** En hızlıdan bu kadar sonra varan seçenek gösterilmez (ör. bir sonraki seferi beklemek) */
+const LATE_LIMIT_S = 60 * 60;
+
+/** Seçenek etiketleri: her biri o ölçütte en iyi olan seçeneğe verilir */
+export const JOURNEY_TAGS = {
+  fastest: "En hızlı",
+  shortest: "En kısa mesafe",
+  cheapest: "En ucuz",
+  fewestTransfers: "En az aktarma",
+  leastWalking: "En az yürüme",
+  walkOnly: "Yürüyerek",
+} as const;
 
 type Label =
   /** meters: yürüme mesafesi (sokak ağı veya tahmin) */
@@ -56,6 +76,8 @@ export interface RouteQuery {
    */
   access?: StopWalk[];
   egress?: StopWalk[];
+  /** Bu hatlar kullanılmaz (alternatif seçenek aramak için, bkz. findAlternatives) */
+  bannedLines?: ReadonlySet<string>;
 }
 
 /** Bir durak ve oraya (veya oradan) yürüme mesafesi (metre) */
@@ -121,10 +143,57 @@ export function accessCandidates(net: Network, p: RoutePoint) {
   return list.filter(({ stop }) => net.stopPatterns[stop].length > 0);
 }
 
-const estimatedWalks = (net: Network, p: RoutePoint): StopWalk[] =>
+/** Sokak ağı yokken: yakın duraklara kuş uçuşu × WALK_FACTOR yürüme tahmini */
+export const estimatedWalks = (net: Network, p: RoutePoint): StopWalk[] =>
   accessCandidates(net, p).map(({ stop, meters }) => ({ stop, walkMeters: meters * WALK_FACTOR }));
 
+/**
+ * Yol tarifi seçenekleri, sıralı ve etiketli: en hızlı, en ucuz, en az aktarmalı, en az
+ * yürümeli… ve aradaki diğer makul seçenekler (bkz. findAlternatives, rankJourneys).
+ */
 export function planJourneys(query: RouteQuery, net: Network = getNetwork()): Journey[] {
+  return rankJourneys(findAlternatives(query, net));
+}
+
+/** Seçeneğin kimliği: bindiği hatlar sırasıyla (aynı hatlarla farklı durak = aynı seçenek) */
+const journeyKey = (j: Journey) =>
+  j.legs.flatMap((l) => (l.type === "ride" ? [l.line] : [])).join(">") || "walk";
+
+/**
+ * Farklı hatlardan giden seçenekler. RAPTOR tek aramada her aktarma sayısı için sadece en
+ * erken varanı verir; başka hatlarla giden ama biraz geç varan (belki daha ucuz, daha az
+ * yürümeli) seçenekler çıkmaz. Bunun için bulunan her seçeneğin hatları birer birer yasaklanıp
+ * yeniden aranır (genişlik öncelikli, en fazla MAX_SEARCHES arama). Aynı hat dizisiyle giden
+ * seçeneklerden en erken varanı kalır.
+ */
+export function findAlternatives(query: RouteQuery, net: Network = getNetwork()): Journey[] {
+  const found = new Map<string, Journey>();
+  const base = query.bannedLines ?? new Set<string>();
+  const queue: ReadonlySet<string>[] = [base];
+  const tried = new Set<string>([[...base].sort().join("|")]);
+
+  for (let searches = 0; queue.length > 0 && searches < MAX_SEARCHES; searches++) {
+    const bannedLines = queue.shift()!;
+    for (const journey of searchJourneys({ ...query, bannedLines }, net)) {
+      const key = journeyKey(journey);
+      const known = found.get(key);
+      if (!known || journey.arrival < known.arrival) found.set(key, journey);
+      if (known) continue; // bu hatların alternatifleri zaten kuyrukta
+      for (const leg of journey.legs) {
+        if (leg.type !== "ride") continue;
+        const next = new Set(bannedLines).add(leg.line);
+        const id = [...next].sort().join("|");
+        if (tried.has(id)) continue;
+        tried.add(id);
+        queue.push(next);
+      }
+    }
+  }
+  return [...found.values()];
+}
+
+/** Tek RAPTOR araması: 0, 1, 2… aktarmalı en erken seçenekler + kısa mesafede sadece yürüyüş */
+export function searchJourneys(query: RouteQuery, net: Network = getNetwork()): Journey[] {
   const departuresOf = searchDepartures(net, query);
   const S = net.stops.length;
   const { from, to, time } = query;
@@ -158,6 +227,7 @@ export function planJourneys(query: RouteQuery, net: Network = getNetwork()): Jo
     const queue = new Map<number, number>();
     for (const stop of marked) {
       for (const { pattern, position } of net.stopPatterns[stop]) {
+        if (query.bannedLines?.has(net.patterns[pattern].line)) continue;
         const current = queue.get(pattern);
         if (current === undefined || position < current) queue.set(pattern, position);
       }
@@ -230,19 +300,37 @@ export function planJourneys(query: RouteQuery, net: Network = getNetwork()): Jo
   const directMeters = haversineMeters(from, to);
   if (directMeters <= WALK_ONLY_MAX_M) {
     const meters = Math.round(directMeters * WALK_FACTOR);
-    const arrival = time + walkSeconds(directMeters);
-    journeys.push({
-      departure: time,
-      arrival,
-      durationMin: Math.round((arrival - time) / 60),
-      transfers: 0,
-      walkMeters: meters,
-      legs: [{ type: "walk", from, to, meters, departure: time, arrival }],
-      tags: [],
-    });
+    journeys.push(walkOnlyJourney({ type: "walk", from, to, meters, departure: time, arrival: 0 }));
   }
 
-  return rankJourneys(journeys);
+  return journeys;
+}
+
+/** Sadece yürüyüş: çıkış sabit, varış mesafeye göre */
+export function walkOnlyJourney(walk: WalkLeg): Journey {
+  walk.arrival = walk.departure + walk.meters / WALK_SPEED;
+  return {
+    departure: walk.departure,
+    arrival: walk.arrival,
+    durationMin: Math.round((walk.arrival - walk.departure) / 60),
+    transfers: 0,
+    walkMeters: walk.meters,
+    distanceMeters: walk.meters,
+    fare: 0,
+    legs: [walk],
+    tags: [],
+  };
+}
+
+/** Araç bacağının güzergâh uzunluğu (duraklar arası kuş uçuşu toplamı) */
+function rideMeters(path: [number, number][]): number {
+  let meters = 0;
+  for (let i = 1; i < path.length; i++) {
+    const [lon1, lat1] = path[i - 1];
+    const [lon2, lat2] = path[i];
+    meters += haversineMeters({ lat: lat1, lon: lon1 }, { lat: lat2, lon: lon2 });
+  }
+  return meters;
 }
 
 /** Etiketleri geriye doğru izleyip yolculuğu bacaklara (yürü / bin) çevirir */
@@ -335,37 +423,57 @@ export function withTimes(legs: JourneyLeg[]): Journey {
   const rides = legs.filter((l) => l.type === "ride");
   const departure = legs[0].departure;
   const arrival = legs.at(-1)!.arrival;
+  const walkMeters = legs.reduce((m, l) => (l.type === "walk" ? m + l.meters : m), 0);
   return {
     departure,
     arrival,
     durationMin: Math.round((arrival - departure) / 60),
     transfers: Math.max(0, rides.length - 1),
-    walkMeters: legs.reduce((m, l) => (l.type === "walk" ? m + l.meters : m), 0),
+    walkMeters,
+    distanceMeters: Math.round(walkMeters + rides.reduce((m, r) => m + rideMeters(r.path), 0)),
+    fare: journeyFare(legs),
     legs,
     tags: [],
   };
 }
 
 /**
- * Seçenekleri sıralar ve etiketler. RAPTOR turları zaten Pareto kümesi verir
- * (daha çok aktarmalı seçenek sadece daha erken varıyorsa vardır). Sıralama
- * "varış + aktarma başına ceza" ile yapılır; en hızlıdan çok geç kalanlar elenir.
+ * Seçenekleri sıralar ve etiketler. Herkes için "en iyi" farklı: kimi için süre, kimi için
+ * ücret, aktarma sayısı ya da yürüme. Bu yüzden tek bir en iyi değil, makul seçeneklerin hepsi
+ * (en fazla MAX_OPTIONS) döner ve her ölçütün en iyisi etiketlenir (JOURNEY_TAGS). Sıralama
+ * "varış + aktarma başına ceza" ile yapılır; en hızlıdan bir saatten fazla geç kalanlar elenir.
  */
 export function rankJourneys(journeys: Journey[]): Journey[] {
   if (journeys.length === 0) return [];
   const cost = (j: Journey) => j.arrival + j.transfers * TRANSFER_PENALTY_S;
   const fastest = Math.min(...journeys.map((j) => j.arrival));
-  const ranked = journeys.filter((j) => j.arrival <= fastest + 45 * 60).sort((a, b) => cost(a) - cost(b));
+  const ranked = journeys
+    .filter((j) => j.arrival <= fastest + LATE_LIMIT_S)
+    .sort((a, b) => cost(a) - cost(b))
+    .slice(0, MAX_OPTIONS);
+  for (const j of ranked) j.tags = [];
 
   const hasRide = (j: Journey) => j.legs.some((l) => l.type === "ride");
   const withRides = ranked.filter(hasRide);
-  const minTransfers = Math.min(...withRides.map((j) => j.transfers));
 
-  const fastestJourney = ranked.find((j) => j.arrival === fastest);
-  fastestJourney?.tags.push("En erken varış");
-  const fewestTransfers = withRides.find((j) => j.transfers === minTransfers);
-  if (fewestTransfers && fewestTransfers !== fastestJourney) fewestTransfers.tags.push("En az aktarma");
-  for (const j of ranked) if (!hasRide(j)) j.tags.push("Yürüyerek");
+  /**
+   * Ölçütte en iyi olana etiket ver (eşitlikte sıralamada önce geleni). Birden çok aday
+   * varken hepsi eşitse etiket bir şey anlatmaz: verilmez.
+   */
+  const award = (candidates: Journey[], value: (j: Journey) => number, tag: string) => {
+    if (candidates.length === 0) return;
+    const values = candidates.map(value);
+    const min = Math.min(...values);
+    if (candidates.length > 1 && values.every((v) => v === min)) return;
+    candidates[values.indexOf(min)].tags.push(tag);
+  };
+  award(ranked, (j) => j.arrival, JOURNEY_TAGS.fastest);
+  award(ranked, (j) => j.distanceMeters, JOURNEY_TAGS.shortest);
+  // Sadece yürüyüş zaten ücretsiz ve aktarmasız: bu ölçütler araçlı seçenekler arasında
+  award(withRides, (j) => j.fare, JOURNEY_TAGS.cheapest);
+  award(withRides, (j) => j.transfers, JOURNEY_TAGS.fewestTransfers);
+  award(withRides, (j) => j.walkMeters, JOURNEY_TAGS.leastWalking);
+  for (const j of ranked) if (!hasRide(j)) j.tags.push(JOURNEY_TAGS.walkOnly);
 
-  return ranked.slice(0, 4);
+  return ranked;
 }

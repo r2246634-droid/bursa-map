@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createSearchIndex, foldTurkish, type Searchable } from "@/lib/search";
+import { createSearchIndex, foldTurkish, prefixTypoDistance, type Searchable } from "@/lib/search";
 
 const names = (items: Searchable[]) => items.map((i) => i.name);
 
@@ -149,4 +149,59 @@ describe("createSearchIndex — önek indeksi sonucu değiştirmez", () => {
       expect(fromIndex).toEqual(new Set(names(naive(query))));
     },
   );
+});
+
+describe("prefixTypoDistance — harf hatası uzaklığı", () => {
+  it("eksik, fazla, yanlış ve yer değiştirmiş harf 1 hata sayılır", () => {
+    expect(prefixTypoDistance("anatolum", "anatolium", 2)).toBe(1); // eksik
+    expect(prefixTypoDistance("meydanni", "meydani", 2)).toBe(1); // fazla
+    expect(prefixTypoDistance("korupork", "korupark", 2)).toBe(1); // yanlış
+    expect(prefixTypoDistance("medyani", "meydani", 2)).toBe(1); // yer değiştirmiş
+  });
+
+  it("kelimenin öneki ile karşılaştırır (yazılmakta olan kelime)", () => {
+    expect(prefixTypoDistance("anatl", "anatolium", 1)).toBe(1);
+    expect(prefixTypoDistance("kent", "kentsel", 1)).toBe(0);
+  });
+
+  it("izin verilenden fazla hata varsa null", () => {
+    expect(prefixTypoDistance("kent", "kemal", 1)).toBeNull();
+    expect(prefixTypoDistance("terminal", "merkez", 2)).toBeNull();
+  });
+});
+
+describe("createSearchIndex — harf hatası toleransı", () => {
+  const places: Searchable[] = [
+    { name: "Anatolium AVM" },
+    { name: "Kent Meydanı AVM" },
+    { name: "Kent" },
+    { name: "Korupark AVM" },
+    { name: "Bursa Şehirlerarası Otobüs Terminali", aliases: ["otogar"] },
+    { name: "Kemal Paşa" },
+  ];
+  const index = createSearchIndex(places);
+
+  it("harf hatalı sorguda doğru yeri bulur", () => {
+    expect(names(index.search("anatolum"))).toEqual(["Anatolium AVM"]);
+    expect(names(index.search("Kent medyanı"))).toEqual(["Kent Meydanı AVM"]);
+    expect(names(index.search("korupak"))).toEqual(["Korupark AVM"]);
+    expect(names(index.search("şehirlerarsı"))).toEqual(["Bursa Şehirlerarası Otobüs Terminali"]);
+  });
+
+  it("takma adda da hata tolere edilir", () => {
+    expect(names(index.search("otgar"))).toEqual(["Bursa Şehirlerarası Otobüs Terminali"]);
+  });
+
+  it("kesin eşleşme varken harf hatalı sonuç eklenmez", () => {
+    expect(names(index.search("kent"))).toEqual(["Kent", "Kent Meydanı AVM"]);
+  });
+
+  it("kısa kelimelerde (3 harf ve altı) hata kabul edilmez", () => {
+    expect(index.search("kn")).toEqual([]);
+    expect(index.search("xyz")).toEqual([]);
+  });
+
+  it("çok hatalı sorgu sonuç döndürmez", () => {
+    expect(index.search("anatoxxxm")).toEqual([]);
+  });
 });

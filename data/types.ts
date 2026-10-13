@@ -1,13 +1,33 @@
 import type { Feature, FeatureCollection, LineString, MultiLineString, Point } from "geojson";
 
-export type LayerId = "metro" | "tram" | "bus" | "transfer" | "campus" | "mall" | "terminal";
+export type LayerId =
+  | "metro"
+  | "tram"
+  | "bus"
+  | "transfer"
+  | "campus"
+  | "mall"
+  | "hospital"
+  | "landmark"
+  | "terminal"
+  // Çevredeki günlük yerler (lib/amenities.ts): sadece yakın çevrede / yakınlaştırınca çizilir
+  | "market"
+  | "school"
+  | "kindergarten"
+  | "pharmacy"
+  | "mosque"
+  | "park"
+  | "bank"
+  | "post";
 
 export interface LayerDefinition {
   id: LayerId;
   label: string;
-  /** Tailwind dışında, Leaflet marker HTML'inde de kullanılacağı için düz hex */
+  /** Tailwind dışında, MapLibre katman stillerinde de kullanılacağı için düz hex */
   color: string;
   defaultVisible: boolean;
+  /** Çevredeki yerler grubu: binlerce nokta, harita merkezinin çevresinde/yakınlaştırınca çizilir */
+  nearby?: boolean;
 }
 
 export interface PointOfInterest {
@@ -27,7 +47,7 @@ export interface PointOfInterest {
 export type RailMode = "metro" | "tram";
 export type TransitMode = RailMode | "bus";
 
-export type MetroLineRef = "B1" | "B2";
+export type MetroLineRef = "M1" | "M2";
 export type TramLineRef = "T1" | "T2" | "T3";
 export type RailLineRef = MetroLineRef | TramLineRef;
 /** Otobüs hat numaraları açık uçlu ("801", "116C"…), bu yüzden genel tip string */
@@ -69,18 +89,6 @@ export const isTransitLine = (f: Feature | undefined): f is TransitLineFeature =
 export const isTransitStation = (f: Feature | undefined): f is TransitStationFeature =>
   f?.properties?.type === "station";
 
-export const isTramLine = (f: Feature | undefined): f is TransitLineFeature =>
-  isTransitLine(f) && f.properties.mode === "tram";
-
-export const isTramStation = (f: Feature | undefined): f is TransitStationFeature =>
-  isTransitStation(f) && f.properties.mode === "tram";
-
-export const isBusLine = (f: Feature | undefined): f is TransitLineFeature =>
-  isTransitLine(f) && f.properties.mode === "bus";
-
-export const isBusStop = (f: Feature | undefined): f is TransitStationFeature =>
-  isTransitStation(f) && f.properties.mode === "bus";
-
 /* ---- Arama / seçim ---- */
 
 interface PlaceBase {
@@ -103,6 +111,12 @@ export type Place =
   /** Altlık haritadan dokunularak seçilen yer (dükkân, okul…) veya boş bir noktaya bırakılan iğne */
   | (PlaceBase & { kind: "feature"; category: string })
   /**
+   * Çevredeki günlük yer (market, okul, eczane…; scripts/fetch-amenities.mjs). category: "Market",
+   * "ATM" gibi görünen tür; area: en yakın semt/mahalle adı; approximate: konum adresten
+   * bulundu, bina değil sokak düzeyinde olabilir (BİM).
+   */
+  | (PlaceBase & { kind: "amenity"; layer: LayerId; category: string; area?: string; approximate?: boolean })
+  /**
    * BURULAŞ otobüs hattı. position: güzergâhın sınır kutusunun ortası (seçilince kamera
    * fitBounds ile tüm hattı kapsar, bu nokta sadece yedek).
    */
@@ -116,7 +130,7 @@ export type BusDirection = "G" | "D" | "R";
 export interface BusLine {
   /** Servisteki hat numarası */
   id: number;
-  /** Hat kodu, ör. "22C" — BURULAŞ'ta "B1"/"B2" otobüs hattıdır, metro değil */
+  /** Hat kodu, ör. "22C" — BURULAŞ'ta "B1"/"B2" otobüs hattıdır; metro hatları M1/M2 */
   code: string;
   name: string;
   stopCount: Partial<Record<BusDirection, number>>;
